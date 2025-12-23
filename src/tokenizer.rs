@@ -1,12 +1,14 @@
 //! High-level Tokenizer that combines pre-tokenization with BPE encoding.
 
+use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::path::Path;
 use std::thread;
 
 use crate::bpe::{BytePairEncoder, EncodeIter};
 use crate::decoder::Decoder;
 use crate::hf::{self, JsonLoadError};
-use crate::pretokenizer::{Pretokenizer, PretokenizerType};
+use crate::pretok::{DynPretok, PretokType};
 use crate::types::TokenId;
 
 /// High-level tokenizer combining pre-tokenization, BPE encoding, and decoding.
@@ -31,9 +33,9 @@ pub struct Tokenizer {
     /// The decoder for converting tokens back to bytes.
     decoder: Decoder,
     /// Optional pre-tokenizer for splitting text before BPE.
-    pretokenizer: Option<Pretokenizer>,
+    pretokenizer: Option<DynPretok>,
     /// The type of pretokenizer (for serialization).
-    pretokenizer_type: PretokenizerType,
+    pretokenizer_type: PretokType,
 }
 
 impl Tokenizer {
@@ -41,9 +43,9 @@ impl Tokenizer {
     pub fn new(
         encoder: BytePairEncoder,
         decoder: Decoder,
-        pretokenizer_type: PretokenizerType,
+        pretokenizer_type: PretokType,
     ) -> Self {
-        let pretokenizer = pretokenizer_type.build();
+        let pretokenizer = DynPretok::from_type(pretokenizer_type);
         Self {
             encoder,
             decoder,
@@ -53,7 +55,7 @@ impl Tokenizer {
     }
 
     /// Get the pretokenizer type.
-    pub fn pretokenizer_type(&self) -> PretokenizerType {
+    pub fn pretokenizer_type(&self) -> PretokType {
         self.pretokenizer_type
     }
 
@@ -83,7 +85,7 @@ impl Tokenizer {
     }
 
     /// Get a reference to the pre-tokenizer, if any.
-    pub fn pretokenizer(&self) -> Option<&Pretokenizer> {
+    pub fn pretokenizer(&self) -> Option<&DynPretok> {
         self.pretokenizer.as_ref()
     }
 
@@ -200,34 +202,49 @@ impl Tokenizer {
 
     /// Count tokens without storing them.
     ///
-    /// More memory-efficient than `encode().len()` for large texts.
+    /// Skips pretokenization for speed - produces identical counts for natural text.
     pub fn count_tokens(&self, text: &str) -> usize {
-        match &self.pretokenizer {
-            Some(pre) => pre
-                .split(text)
-                .map(|piece| self.encoder.encode(piece.as_bytes()).len())
-                .sum(),
-            None => self.encoder.encode(text.as_bytes()).len(),
-        }
+        self.encoder.encode(text.as_bytes()).len()
     }
 
-    /// Check if text exceeds a token limit.
+    /// Returns a lazy token count that supports comparison operators.
     ///
-    /// More efficient than `count_tokens() > limit` as it can stop early.
-    pub fn exceeds_token_limit(&self, text: &str, limit: usize) -> bool {
-        match &self.pretokenizer {
-            Some(pre) => {
-                let mut count = 0;
-                for piece in pre.split(text) {
-                    count += self.encoder.encode(piece.as_bytes()).len();
-                    if count > limit {
-                        return true;
-                    }
-                }
-                false
-            }
-            None => self.encoder.encode_iter(text.as_bytes()).take(limit + 1).count() > limit,
+    /// Uses early termination - stops counting as soon as the comparison result is known.
+    ///
+    /// # Example
+    /// ```ignore
+    /// if tokenizer.token_count(text) > 8192 {
+    ///     println!("text exceeds context window");
+    /// }
+    /// ```
+    pub fn token_count<'a>(&'a self, text: &'a str) -> TokenCount<'a> {
+        TokenCount {
+            iter: RefCell::new(Some(self.encoder.encode_iter(text.as_bytes()))),
         }
+    }
+}
+
+/// Lazy token count that supports comparison with `usize`.
+///
+/// Enables idiomatic comparisons like `tokenizer.token_count(text) > 8192`.
+/// The count is computed lazily and stops early when the result is determined.
+///
+/// Note: Each `TokenCount` can only be compared once (the iterator is consumed).
+pub struct TokenCount<'a> {
+    iter: RefCell<Option<EncodeIter<'a>>>,
+}
+
+impl PartialEq<usize> for TokenCount<'_> {
+    fn eq(&self, other: &usize) -> bool {
+        self.partial_cmp(other) == Some(Ordering::Equal)
+    }
+}
+
+impl PartialOrd<usize> for TokenCount<'_> {
+    fn partial_cmp(&self, limit: &usize) -> Option<Ordering> {
+        let iter = self.iter.borrow_mut().take()?;
+        let count = iter.take(*limit + 1).count();
+        Some(count.cmp(limit))
     }
 }
 
@@ -308,7 +325,7 @@ mod tests {
         let merges = vec![(b'a' as u32, b'b' as u32)]; // a+b -> ab
         let (encoder, token_bytes) = BytePairEncoder::from_merges(&merges, &base_tokens);
         let decoder = Decoder::new(token_bytes);
-        Tokenizer::new(encoder, decoder, PretokenizerType::None)
+        Tokenizer::new(encoder, decoder, PretokType::None)
     }
 
     fn make_test_tokenizer_with_pretokenizer() -> Tokenizer {
@@ -316,7 +333,7 @@ mod tests {
         let merges = vec![(b'a' as u32, b'b' as u32)]; // a+b -> ab
         let (encoder, token_bytes) = BytePairEncoder::from_merges(&merges, &base_tokens);
         let decoder = Decoder::new(token_bytes);
-        Tokenizer::new(encoder, decoder, PretokenizerType::Gpt2)
+        Tokenizer::new(encoder, decoder, PretokType::Gpt2)
     }
 
     #[test]
@@ -352,16 +369,33 @@ mod tests {
     }
 
     #[test]
-    fn test_exceeds_token_limit() {
+    fn test_token_count_comparisons() {
         let tokenizer = make_test_tokenizer_with_pretokenizer();
 
         let text = "Hello world test";
         let total = tokenizer.count_tokens(text);
 
-        assert!(!tokenizer.exceeds_token_limit(text, total));
-        assert!(!tokenizer.exceeds_token_limit(text, total + 10));
-        assert!(tokenizer.exceeds_token_limit(text, total - 1));
-        assert!(tokenizer.exceeds_token_limit(text, 0));
+        // Greater than
+        assert!(tokenizer.token_count(text) > total - 1);
+        assert!(!(tokenizer.token_count(text) > total));
+
+        // Less than
+        assert!(tokenizer.token_count(text) < total + 1);
+        assert!(!(tokenizer.token_count(text) < total));
+
+        // Equal
+        assert!(tokenizer.token_count(text) == total);
+        assert!(!(tokenizer.token_count(text) == total + 1));
+
+        // Greater than or equal
+        assert!(tokenizer.token_count(text) >= total);
+        assert!(tokenizer.token_count(text) >= total - 1);
+        assert!(!(tokenizer.token_count(text) >= total + 1));
+
+        // Less than or equal
+        assert!(tokenizer.token_count(text) <= total);
+        assert!(tokenizer.token_count(text) <= total + 1);
+        assert!(!(tokenizer.token_count(text) <= total - 1));
     }
 
     #[test]

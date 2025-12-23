@@ -30,7 +30,7 @@ use std::io::{Read, Write};
 
 use crate::bpe::BytePairEncoder;
 use crate::decoder::Decoder;
-use crate::pretokenizer::PretokenizerType;
+use crate::pretok::PretokType;
 use crate::tokenizer::Tokenizer;
 use crate::types::{Split, TokenId};
 use daggrs::DoubleArrayAhoCorasick;
@@ -40,7 +40,7 @@ const MAGIC: &[u8; 4] = b"TOKI";
 const VERSION: u32 = 2; // v2 adds prefix_data section
 const HEADER_SIZE: usize = 56;
 
-impl PretokenizerType {
+impl PretokType {
     fn from_u32(v: u32) -> Option<Self> {
         match v {
             0 => Some(Self::None),
@@ -181,7 +181,7 @@ impl Tokenizer {
         }
 
         let pretokenizer_type = u32::from_le_bytes(data[8..12].try_into().unwrap());
-        let pretokenizer_type = PretokenizerType::from_u32(pretokenizer_type)
+        let pretokenizer_type = PretokType::from_u32(pretokenizer_type)
             .ok_or(SerdeError::InvalidPretokenizer(pretokenizer_type))?;
 
         let vocab_size = u32::from_le_bytes(data[12..16].try_into().unwrap()) as usize;
@@ -384,12 +384,12 @@ mod tests {
     #[test]
     fn test_pretokenizer_type_roundtrip() {
         for typ in [
-            PretokenizerType::None,
-            PretokenizerType::Gpt2,
-            PretokenizerType::Cl100k,
-            PretokenizerType::O200k,
+            PretokType::None,
+            PretokType::Gpt2,
+            PretokType::Cl100k,
+            PretokType::O200k,
         ] {
-            assert_eq!(PretokenizerType::from_u32(typ as u32), Some(typ));
+            assert_eq!(PretokType::from_u32(typ as u32), Some(typ));
         }
     }
 
@@ -402,7 +402,7 @@ mod tests {
         ];
         let (encoder, token_bytes) = crate::bpe::BytePairEncoder::from_merges(&merges, &base_tokens);
         let decoder = crate::decoder::Decoder::new(token_bytes);
-        Tokenizer::new(encoder, decoder, PretokenizerType::Gpt2)
+        Tokenizer::new(encoder, decoder, PretokType::Gpt2)
     }
 
     #[test]

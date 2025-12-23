@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::bpe::BytePairEncoder;
 use crate::decoder::Decoder;
-use crate::pretokenizer::PretokenizerType;
+use crate::pretok::PretokType;
 use crate::tokenizer::Tokenizer;
 
 /// Error loading from HuggingFace JSON format.
@@ -66,7 +66,7 @@ pub fn from_json(path: impl AsRef<Path>) -> Result<Tokenizer, JsonLoadError> {
 /// Use this when you want to use a different pretokenizer than what the JSON specifies.
 pub fn from_json_with_pretokenizer(
     path: impl AsRef<Path>,
-    pretokenizer_type: PretokenizerType,
+    pretokenizer_type: PretokType,
 ) -> Result<Tokenizer, JsonLoadError> {
     let json_str = std::fs::read_to_string(path)?;
     from_json_str_with_pretokenizer(&json_str, pretokenizer_type)
@@ -82,7 +82,7 @@ pub fn from_json_str(json_str: &str) -> Result<Tokenizer, JsonLoadError> {
 /// Load a tokenizer from JSON string with a specific pretokenizer type.
 pub fn from_json_str_with_pretokenizer(
     json_str: &str,
-    pretokenizer_type: PretokenizerType,
+    pretokenizer_type: PretokType,
 ) -> Result<Tokenizer, JsonLoadError> {
     let data: serde_json::Value = serde_json::from_str(json_str)?;
     load_from_json_value(&data, pretokenizer_type)
@@ -91,7 +91,7 @@ pub fn from_json_str_with_pretokenizer(
 /// Internal: load tokenizer from parsed JSON value.
 fn load_from_json_value(
     data: &serde_json::Value,
-    pretokenizer_type: PretokenizerType,
+    pretokenizer_type: PretokType,
 ) -> Result<Tokenizer, JsonLoadError> {
     let model = &data["model"];
     let vocab_map = model["vocab"]
@@ -139,19 +139,19 @@ fn load_from_json_value(
 /// pretokenizers (cl100k, o200k), use `from_json_with_pretokenizer` to
 /// explicitly specify the type - this avoids silent mismatches if the
 /// regex pattern differs slightly from what we expect.
-fn detect_pretokenizer_type(data: &serde_json::Value) -> PretokenizerType {
+fn detect_pretokenizer_type(data: &serde_json::Value) -> PretokType {
     let pre_tokenizer = &data["pre_tokenizer"];
 
     if let Some(typ) = pre_tokenizer["type"].as_str() {
         // ByteLevel pre-tokenizer (GPT-2 style) - safe to auto-detect
         if typ == "ByteLevel" {
-            return PretokenizerType::Gpt2;
+            return PretokType::Gpt2;
         }
     }
 
     // For Sequence or other complex pretokenizers, return None.
     // User should use from_json_with_pretokenizer() to explicitly specify.
-    PretokenizerType::None
+    PretokType::None
 }
 
 /// Decode a GPT-2 token string to bytes.

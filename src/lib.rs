@@ -7,10 +7,10 @@
 //! # Quick Start
 //!
 //! ```ignore
-//! use tokie::{Tokenizer, PretokenizerType};
+//! use tokie::{Tokenizer, PretokType};
 //!
 //! // Load from HuggingFace tokenizer.json
-//! let tokenizer = Tokenizer::from_json("tokenizer.json", PretokenizerType::Gpt2)?;
+//! let tokenizer = Tokenizer::from_json("tokenizer.json")?;
 //!
 //! // Encode text
 //! let tokens = tokenizer.encode("Hello, world!");
@@ -28,13 +28,13 @@
 //! - [`Tokenizer`] - High-level API combining pre-tokenization + BPE encoding + decoding
 //! - [`BytePairEncoder`] - Low-level BPE encoder (bytes → tokens)
 //! - [`Decoder`] - Token ID to bytes decoder (can be shared across encoder types)
-//! - [`Pretokenizer`] - Regex-based text splitter (GPT-2, cl100k, o200k patterns)
+//! - [`pretok`] - Fast pretokenizers (GPT-2: 566 MiB/s, cl100k, o200k)
 
 mod bpe;
 mod compatibility;
 mod decoder;
 pub mod hf;
-mod pretokenizer;
+pub mod pretok;
 mod serde;
 mod tokenizer;
 mod types;
@@ -42,7 +42,12 @@ mod types;
 pub use bpe::{BytePairEncoder, EncodeIter};
 pub use decoder::Decoder;
 pub use hf::JsonLoadError;
-pub use pretokenizer::{Pretokenizer, PretokenizerIter, PretokenizerType};
+pub use pretok::{DynPretok, DynPretokIter, Gpt2Pretok, Pretok, PretokType, RegexPretok};
 pub use serde::SerdeError;
-pub use tokenizer::{Tokenizer, TokenizeIter};
+pub use tokenizer::{TokenCount, Tokenizer, TokenizeIter};
 pub use types::TokenId;
+
+// Backward compatibility aliases
+#[doc(hidden)]
+#[deprecated(since = "0.2.0", note = "Use PretokType instead")]
+pub type PretokenizerType = PretokType;

@@ -23,6 +23,7 @@ use crate::types::TokenId;
 /// let decoder = Decoder::new(token_bytes);
 /// let text = decoder.decode(&[100, 200, 300]);
 /// ```
+#[derive(Clone)]
 pub struct Decoder {
     /// All token bytes concatenated.
     data: Vec<u8>,

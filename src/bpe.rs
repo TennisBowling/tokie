@@ -164,6 +164,7 @@ impl Iterator for EncodeIter<'_> {
 impl std::iter::FusedIterator for EncodeIter<'_> {}
 
 /// BPE Tokenizer using Aho-Corasick for efficient suffix matching.
+#[derive(Clone)]
 pub struct BytePairEncoder {
     /// For each token, stores the two tokens it was merged from.
     /// Base tokens point to themselves.
