@@ -24,3 +24,9 @@ target
 # Added by cargo
 
 /target
+
+# Model files
+models/
+.DS_Store
+work.log
+ENCODE_ITER_DESIGN.md

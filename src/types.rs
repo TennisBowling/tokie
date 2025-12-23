@@ -21,9 +21,4 @@ impl Split {
     pub fn merge(left: TokenId, right: TokenId) -> Self {
         Self { left, right }
     }
-
-    /// Check if this is a base token (not formed by a merge)
-    pub fn is_base(&self, id: TokenId) -> bool {
-        self.left == id && self.right == id
-    }
 }
