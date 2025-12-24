@@ -7,7 +7,7 @@
 //! # Quick Start
 //!
 //! ```ignore
-//! use tokie::{Tokenizer, PretokType};
+//! use tokie::Tokenizer;
 //!
 //! // Load from HuggingFace tokenizer.json
 //! let tokenizer = Tokenizer::from_json("tokenizer.json")?;
@@ -23,6 +23,21 @@
 //! let tokenizer = Tokenizer::from_file("model.tkz")?;
 //! ```
 //!
+//! # Loading from HuggingFace Hub
+//!
+//! Enable the `hf` feature to load tokenizers directly from HuggingFace:
+//!
+//! ```toml
+//! tokie = { version = "0.1", features = ["hf"] }
+//! ```
+//!
+//! ```ignore
+//! use tokie::Tokenizer;
+//!
+//! let tokenizer = Tokenizer::from_pretrained("gpt2")?;
+//! let tokenizer = Tokenizer::from_pretrained("meta-llama/Llama-3.2-8B")?;
+//! ```
+//!
 //! # Architecture
 //!
 //! - [`Tokenizer`] - High-level API combining pre-tokenization + BPE encoding + decoding
@@ -34,6 +49,8 @@ mod bpe;
 mod compatibility;
 mod decoder;
 pub mod hf;
+#[cfg(feature = "hf")]
+mod hub;
 pub mod pretok;
 mod serde;
 mod tokenizer;
@@ -42,7 +59,9 @@ mod types;
 pub use bpe::{BytePairEncoder, EncodeIter};
 pub use decoder::Decoder;
 pub use hf::JsonLoadError;
-pub use pretok::{DynPretok, DynPretokIter, Gpt2Pretok, Pretok, PretokType, RegexPretok};
+#[cfg(feature = "hf")]
+pub use hub::{FromPretrainedOptions, HubError};
+pub use pretok::{Pretok, PretokIter, PretokType, RegexPretok};
 pub use serde::SerdeError;
 pub use tokenizer::{TokenCount, Tokenizer, TokenizeIter};
 pub use types::TokenId;

@@ -5,10 +5,12 @@ use std::cmp::Ordering;
 use std::path::Path;
 use std::thread;
 
+use memchunk::chunk;
+
 use crate::bpe::{BytePairEncoder, EncodeIter};
 use crate::decoder::Decoder;
 use crate::hf::{self, JsonLoadError};
-use crate::pretok::{DynPretok, PretokType};
+use crate::pretok::{Pretok, PretokType};
 use crate::types::TokenId;
 
 /// High-level tokenizer combining pre-tokenization, BPE encoding, and decoding.
@@ -33,7 +35,7 @@ pub struct Tokenizer {
     /// The decoder for converting tokens back to bytes.
     decoder: Decoder,
     /// Optional pre-tokenizer for splitting text before BPE.
-    pretokenizer: Option<DynPretok>,
+    pretokenizer: Option<Pretok>,
     /// The type of pretokenizer (for serialization).
     pretokenizer_type: PretokType,
 }
@@ -45,7 +47,7 @@ impl Tokenizer {
         decoder: Decoder,
         pretokenizer_type: PretokType,
     ) -> Self {
-        let pretokenizer = DynPretok::from_type(pretokenizer_type);
+        let pretokenizer = pretokenizer_type.to_pretok();
         Self {
             encoder,
             decoder,
@@ -85,7 +87,7 @@ impl Tokenizer {
     }
 
     /// Get a reference to the pre-tokenizer, if any.
-    pub fn pretokenizer(&self) -> Option<&DynPretok> {
+    pub fn pretokenizer(&self) -> Option<&Pretok> {
         self.pretokenizer.as_ref()
     }
 
@@ -94,13 +96,16 @@ impl Tokenizer {
         self.decoder.vocab_size()
     }
 
-    /// Minimum pieces to trigger parallel encoding.
-    const PARALLEL_ENCODE_THRESHOLD: usize = 1000;
+    /// Minimum text size (in bytes) to trigger chunked parallel encoding.
+    /// Below this threshold, sequential encoding is used to avoid overhead.
+    const PARALLEL_CHUNK_THRESHOLD: usize = 10_000;
 
     /// Encode text into token IDs.
     ///
     /// If a pre-tokenizer is configured, the text is first split into pieces,
-    /// then each piece is BPE-encoded (in parallel for large texts).
+    /// then each piece is BPE-encoded. For texts >= 10KB, uses chunked parallel
+    /// encoding where the text is split at whitespace boundaries and each chunk
+    /// is pretokenized + encoded in parallel.
     ///
     /// # Example
     /// ```ignore
@@ -108,53 +113,72 @@ impl Tokenizer {
     /// ```
     pub fn encode(&self, text: &str) -> Vec<TokenId> {
         match &self.pretokenizer {
-            Some(pre) => {
-                let pieces: Vec<&str> = pre.split(text).collect();
-
-                if pieces.len() >= Self::PARALLEL_ENCODE_THRESHOLD {
-                    self.encode_pretokens(&pieces)
+            Some(pretok) => {
+                if text.len() >= Self::PARALLEL_CHUNK_THRESHOLD {
+                    self.encode_parallel(text, pretok)
                 } else {
-                    pieces
-                        .iter()
-                        .flat_map(|piece| self.encoder.encode(piece.as_bytes()))
-                        .collect()
+                    self.encode_sequential(text, pretok)
                 }
             }
             None => self.encoder.encode(text.as_bytes()),
         }
     }
 
-    /// Encode pretokenized pieces in parallel.
-    fn encode_pretokens(&self, pieces: &[&str]) -> Vec<TokenId> {
+    /// Sequential encoding: pretokenize then BPE encode each piece.
+    #[inline]
+    fn encode_sequential(&self, text: &str, pretok: &Pretok) -> Vec<TokenId> {
+        pretok
+            .split(text)
+            .flat_map(|piece| self.encoder.encode(piece.as_bytes()))
+            .collect()
+    }
+
+    /// Parallel encoding: split text into chunks at whitespace boundaries,
+    /// then each thread does pretokenization + BPE on its chunk.
+    fn encode_parallel(&self, text: &str, pretok: &Pretok) -> Vec<TokenId> {
+        let bytes = text.as_bytes();
         let num_cpus = thread::available_parallelism()
             .map(|p| p.get())
             .unwrap_or(1);
 
-        let chunk_size = (pieces.len() + num_cpus - 1) / num_cpus;
+        // Split into ~num_cpus chunks at whitespace boundaries
+        let chunks: Vec<&[u8]> = chunk(bytes)
+            .size(bytes.len() / num_cpus)
+            .delimiters(b" \n")
+            .prefix()
+            .collect();
 
+        if chunks.len() <= 1 {
+            return self.encode_sequential(text, pretok);
+        }
+
+        // Each thread: pretokenize + BPE encode its chunk
+        let encoder = &self.encoder;
         let results: Vec<Vec<TokenId>> = thread::scope(|s| {
-            let handles: Vec<_> = pieces
-                .chunks(chunk_size)
-                .map(|chunk| {
-                    let encoder = &self.encoder;
+            chunks
+                .iter()
+                .map(|chunk_bytes| {
                     s.spawn(move || {
-                        let mut tokens = Vec::new();
-                        for piece in chunk {
-                            tokens.extend(encoder.encode(piece.as_bytes()));
-                        }
-                        tokens
+                        // SAFETY: Input was valid UTF-8, and we only split at ASCII
+                        // whitespace (space/newline), preserving UTF-8 validity.
+                        let chunk_str = unsafe { std::str::from_utf8_unchecked(chunk_bytes) };
+                        pretok
+                            .split(chunk_str)
+                            .flat_map(|piece| encoder.encode(piece.as_bytes()))
+                            .collect()
                     })
                 })
-                .collect();
-
-            handles.into_iter().map(|h| h.join().unwrap()).collect()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .map(|h| h.join().unwrap())
+                .collect()
         });
 
-        // Flatten results
+        // Flatten with pre-allocated capacity
         let total: usize = results.iter().map(|v| v.len()).sum();
         let mut output = Vec::with_capacity(total);
-        for chunk in results {
-            output.extend(chunk);
+        for chunk_tokens in results {
+            output.extend(chunk_tokens);
         }
         output
     }
@@ -203,6 +227,8 @@ impl Tokenizer {
     /// Count tokens without storing them.
     ///
     /// Skips pretokenization for speed - produces identical counts for natural text.
+    /// Note: Uses `encode().len()` which is faster than `encode_iter().count()`
+    /// for full counts because the streaming iterator has backtracking overhead.
     pub fn count_tokens(&self, text: &str) -> usize {
         self.encoder.encode(text.as_bytes()).len()
     }

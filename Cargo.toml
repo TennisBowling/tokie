@@ -5,12 +5,17 @@ edition = "2024"
 description = "Fast BPE tokenizer using Aho-Corasick automata"
 license = "AGPL-3.0"
 
+[features]
+default = []
+hf = ["hf-hub"]
+
 [dependencies]
 crc32fast = "1.4"
 daggrs = { path = "../daggrs" }
 fnv = "1.0"
+hf-hub = { version = "0.4.3", default-features = false, features = ["ureq"], optional = true }
 memchr = "2.7.6"
-memchunk = "0.1.6"
+memchunk = "0.1.7"
 regex-automata = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -22,6 +27,8 @@ tokenizers = "0.22"
 tiktoken-rs = "0.9"
 pcre2 = "0.2"
 logos = "0.15"
+walkdir = "2.5.0"
+dirs = "6.0.0"
 
 [[bench]]
 name = "tokenize"
@@ -32,6 +39,14 @@ name = "piece_analysis"
 
 [[example]]
 name = "regex_bench"
+
+[[example]]
+name = "from_pretrained"
+required-features = ["hf"]
+
+[[example]]
+name = "tiktoken_compat"
+required-features = ["hf"]
 
 [dev-dependencies.quick_cache]
 version = "0.6"

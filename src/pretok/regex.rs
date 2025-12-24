@@ -7,8 +7,6 @@
 
 use regex_automata::{meta::Regex, util::captures::Captures, Anchored, Input};
 
-use super::Pretok;
-
 /// Regex-based pretokenizer.
 ///
 /// Achieves ~146 MiB/s on GPT-2 patterns. Use hand-coded lexers for
@@ -59,7 +57,7 @@ impl RegexPretok {
 
     /// Create a GPT-2 compatible pretokenizer (regex version).
     ///
-    /// Use [`Gpt2Pretok`](super::Gpt2Pretok) for better performance.
+    /// Use [`Pretok::GPT2`](super::Pretok::GPT2) for better performance.
     pub fn gpt2() -> Self {
         Self::new(&[
             (
@@ -71,18 +69,20 @@ impl RegexPretok {
         ])
         .expect("valid GPT-2 pattern")
     }
-}
 
-impl Pretok for RegexPretok {
-    type Iter<'a> = RegexPretokIter<'a>;
-
-    fn split<'a>(&'a self, text: &'a str) -> Self::Iter<'a> {
+    /// Split text into pre-tokens.
+    pub fn split<'a>(&'a self, text: &'a str) -> RegexPretokIter<'a> {
         RegexPretokIter {
             pretokenizer: self,
             text,
             pos: 0,
             caps: Captures::matches(self.regex.group_info().clone()),
         }
+    }
+
+    /// Split text and collect into a Vec.
+    pub fn split_to_vec<'a>(&'a self, text: &'a str) -> Vec<&'a str> {
+        self.split(text).collect()
     }
 }
 
@@ -152,5 +152,22 @@ mod tests {
         let pre = RegexPretok::gpt2();
         let tokens: Vec<_> = pre.split("How's it going?").collect();
         assert_eq!(tokens, vec!["How", "'s", " it", " going", "?"]);
+    }
+}
+
+#[cfg(test)]
+mod o200k_tests {
+    use super::*;
+
+    #[test]
+    fn test_o200k_camelcase() {
+        let o200k = RegexPretok::o200k();
+
+        assert_eq!(o200k.split("CamelCase").collect::<Vec<_>>(), vec!["Camel", "Case"]);
+        assert_eq!(o200k.split("JSONParser").collect::<Vec<_>>(), vec!["JSONParser"]);
+        assert_eq!(o200k.split("parseJSON").collect::<Vec<_>>(), vec!["parse", "JSON"]);
+        assert_eq!(o200k.split("XMLHttpRequest").collect::<Vec<_>>(), vec!["XMLHttp", "Request"]);
+        assert_eq!(o200k.split("don't").collect::<Vec<_>>(), vec!["don't"]);
+        assert_eq!(o200k.split("Hello world").collect::<Vec<_>>(), vec!["Hello", " world"]);
     }
 }

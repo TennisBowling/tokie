@@ -242,6 +242,121 @@ impl BytePairEncoder {
         merges: &[(TokenId, TokenId)],
         base_tokens: &[Vec<u8>],
     ) -> (Self, Vec<Vec<u8>>) {
+        Self::from_merges_with_added(merges, base_tokens, &[])
+    }
+
+    /// Create a BPE encoder from a complete vocabulary and merge rules.
+    ///
+    /// This is for tokenizers (like LLaMA) where the vocab has pre-assigned IDs
+    /// that don't follow sequential merge order. The vocab provides the bytes for
+    /// each token directly, and merges just define the merge priority/rules.
+    ///
+    /// # Arguments
+    /// * `vocab` - Complete vocabulary as Vec<(id, bytes)>, sorted by id.
+    /// * `merges` - List of (token1, token2) pairs in merge order (for pair_lookup).
+    /// * `num_base_tokens` - Number of base tokens (for split_table marking).
+    pub fn from_vocab_and_merges(
+        vocab: &[(u32, Vec<u8>)],
+        merges: &[(TokenId, TokenId)],
+        num_base_tokens: usize,
+    ) -> (Self, Vec<Vec<u8>>) {
+        // Build token_bytes from vocab (assumes vocab is sorted by id with no gaps)
+        let token_bytes: Vec<Vec<u8>> = vocab.iter().map(|(_, bytes)| bytes.clone()).collect();
+
+        // Build reverse lookup: token bytes -> token ID
+        let bytes_to_id: FnvHashMap<Vec<u8>, TokenId> = vocab
+            .iter()
+            .map(|(id, bytes)| (bytes.clone(), *id))
+            .collect();
+
+        // Build pair_lookup and track which merges create which tokens
+        let mut pair_lookup = FnvHashMap::default();
+        let mut merge_creates: FnvHashMap<TokenId, (TokenId, TokenId)> = FnvHashMap::default();
+
+        for &(left, right) in merges.iter() {
+            // Compute the merged token's bytes
+            let mut merged_bytes = token_bytes[left as usize].clone();
+            merged_bytes.extend_from_slice(&token_bytes[right as usize]);
+
+            // Look up the merged token's ID in vocab
+            if let Some(&merged_id) = bytes_to_id.get(&merged_bytes) {
+                pair_lookup.insert((left, right), merged_id);
+                // Only record the first merge that creates this token (highest priority)
+                merge_creates.entry(merged_id).or_insert((left, right));
+            }
+        }
+
+        // Build split_table: base tokens point to themselves, merged tokens point to their parts
+        let mut split_table: Vec<Split> = Vec::with_capacity(vocab.len());
+        for (id, _) in vocab.iter() {
+            let id = *id as TokenId;
+            if let Some(&(left, right)) = merge_creates.get(&id) {
+                // This token was created by a merge
+                split_table.push(Split::merge(left, right));
+            } else {
+                // Base token or special token (not from a merge)
+                split_table.push(Split::base(id));
+            }
+        }
+
+        // Build the Aho-Corasick automaton
+        let mut trie = Trie::new();
+        for (id, bytes) in token_bytes.iter().enumerate() {
+            trie.add(bytes, id as TokenId);
+        }
+        trie.build(MatchKind::LeftmostLongest);
+        let matcher = trie.compile();
+
+        // Build next_prefix_match table
+        let next_prefix_match: Vec<TokenId> = token_bytes
+            .iter()
+            .map(|token| {
+                if token.len() <= 1 {
+                    u32::MAX
+                } else {
+                    let prefix = &token[0..token.len() - 1];
+                    matcher
+                        .find_iter(prefix)
+                        .next()
+                        .map(|m| m.pattern_id)
+                        .unwrap_or(u32::MAX)
+                }
+            })
+            .collect();
+
+        // Extract token lengths
+        let token_lengths: Vec<u8> = token_bytes
+            .iter()
+            .map(|t| t.len().min(255) as u8)
+            .collect();
+
+        let encoder = Self {
+            split_table,
+            pair_lookup,
+            token_lengths,
+            num_base_tokens,
+            matcher,
+            next_prefix_match,
+        };
+
+        (encoder, token_bytes)
+    }
+
+    /// Create a BPE encoder from merge rules, handling added/special tokens.
+    ///
+    /// Some tokenizers (like p50k) have special tokens that occupy IDs in the
+    /// middle of the merge sequence. This function inserts those tokens at the
+    /// correct positions.
+    ///
+    /// # Arguments
+    /// * `merges` - List of (token1, token2) pairs in merge order.
+    /// * `base_tokens` - The base vocabulary (typically 256 single-byte tokens).
+    /// * `added_tokens` - List of (id, bytes) for special tokens with id >= 256.
+    pub fn from_merges_with_added(
+        merges: &[(TokenId, TokenId)],
+        base_tokens: &[Vec<u8>],
+        added_tokens: &[(u32, Vec<u8>)],
+    ) -> (Self, Vec<Vec<u8>>) {
         let num_base_tokens = base_tokens.len();
 
         // Initialize split_table and token_bytes with base tokens
@@ -252,8 +367,28 @@ impl BytePairEncoder {
         let mut token_bytes: Vec<Vec<u8>> = base_tokens.to_vec();
         let mut pair_lookup = FnvHashMap::default();
 
-        // Process each merge
+        // Sort added tokens by ID for efficient insertion
+        let mut added_sorted: Vec<_> = added_tokens.to_vec();
+        added_sorted.sort_by_key(|(id, _)| *id);
+        let mut added_iter = added_sorted.into_iter().peekable();
+
+        // Process each merge, inserting added tokens at correct positions
         for &(left, right) in merges {
+            let next_id = split_table.len() as TokenId;
+
+            // Insert any added tokens that come before this merge's output
+            while let Some(&(added_id, _)) = added_iter.peek() {
+                if added_id <= next_id {
+                    let (_, bytes) = added_iter.next().unwrap();
+                    // Added token - mark as base (not from merge)
+                    split_table.push(Split::base(split_table.len() as TokenId));
+                    token_bytes.push(bytes);
+                } else {
+                    break;
+                }
+            }
+
+            // Now process the merge
             let new_id = split_table.len() as TokenId;
 
             // Record the split (how this token was formed)
@@ -265,6 +400,12 @@ impl BytePairEncoder {
             // Compute the byte sequence for this token
             let mut bytes = token_bytes[left as usize].clone();
             bytes.extend_from_slice(&token_bytes[right as usize]);
+            token_bytes.push(bytes);
+        }
+
+        // Insert any remaining added tokens
+        for (_, bytes) in added_iter {
+            split_table.push(Split::base(split_table.len() as TokenId));
             token_bytes.push(bytes);
         }
 
