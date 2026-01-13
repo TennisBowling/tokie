@@ -13,51 +13,64 @@ hf = ["hf-hub"]
 crc32fast = "1.4"
 daggrs = { path = "../daggrs" }
 fnv = "1.0"
+boomphf = "0.6"
+foldhash = "0.1"
+rustc-hash = "2.1"
+smallvec = "1.13"
 hf-hub = { version = "0.4.3", default-features = false, features = ["ureq"], optional = true }
-memchr = "2.7.6"
-memchunk = "0.1.7"
+memchr = "2.7"
+memchunk = "0.3"
 regex-automata = "0.4"
+icu_normalizer = "1.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 unicode-general-category = "1.0"
 
 [dev-dependencies]
 criterion = "0.5"
-tokenizers = "0.22"
-tiktoken-rs = "0.9"
-pcre2 = "0.2"
+unicode-normalization = "0.1"
+dirs = "6.0"
+fancy-regex = "0.14"
+icu_properties = "1.5"
+kitoken = "0.10"
 logos = "0.15"
-walkdir = "2.5.0"
-dirs = "6.0.0"
+pcre2 = "0.2"
+tiktoken-rs = "0.9"
+tokenizers = { version = "0.22", features = ["http"] }
+orx-priority-queue = "1.8.0"
+pqueue = "0.2.0"
 
 [[bench]]
 name = "tokenize"
 harness = false
 
-[[example]]
-name = "piece_analysis"
-
-[[example]]
-name = "regex_bench"
+[[bench]]
+name = "loading"
+harness = false
 
 [[example]]
 name = "from_pretrained"
 required-features = ["hf"]
 
 [[example]]
+name = "test_gpt2"
+required-features = ["hf"]
+
+[[example]]
 name = "tiktoken_compat"
 required-features = ["hf"]
 
-[dev-dependencies.quick_cache]
-version = "0.6"
+[[example]]
+name = "verify_gpt2"
+required-features = ["hf"]
 
-[dev-dependencies.moka]
-version = "0.12"
-default-features = false
-features = ["sync"]
+[[example]]
+name = "verify_gpt2_vocab"
+required-features = ["hf"]
 
-[dev-dependencies.mini-moka]
-version = "0.10"
+[[example]]
+name = "check_embedding_models"
+required-features = ["hf"]
 
-[dev-dependencies.dashmap]
-version = "6"
+[[example]]
+name = "verify_embedding_models"

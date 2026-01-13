@@ -115,7 +115,7 @@ impl Tokenizer {
     /// use tokie::Tokenizer;
     ///
     /// let tokenizer = Tokenizer::from_pretrained("gpt2")?;
-    /// let tokens = tokenizer.encode("Hello, world!");
+    /// let tokens = tokenizer.encode("Hello, world!", false);
     /// ```
     pub fn from_pretrained(repo_id: impl AsRef<str>) -> Result<Self, HubError> {
         Self::from_pretrained_with_options(repo_id, FromPretrainedOptions::default())
@@ -182,7 +182,7 @@ mod tests {
     #[ignore] // Requires network access
     fn test_from_pretrained_gpt2() {
         let tokenizer = Tokenizer::from_pretrained("gpt2").expect("Failed to load GPT-2");
-        let tokens = tokenizer.encode("Hello, world!");
+        let tokens = tokenizer.encode("Hello, world!", false);
         assert!(!tokens.is_empty());
 
         // Verify it produces expected tokens for GPT-2
@@ -199,7 +199,7 @@ mod tests {
         )
         .expect("Failed to load GPT-2");
 
-        let tokens = tokenizer.encode("Test");
+        let tokens = tokenizer.encode("Test", false);
         assert!(!tokens.is_empty());
     }
 }

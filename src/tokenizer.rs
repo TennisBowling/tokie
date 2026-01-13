@@ -7,9 +7,11 @@ use std::thread;
 
 use memchunk::chunk;
 
-use crate::bpe::{BytePairEncoder, EncodeIter};
+use crate::encoder::{Encoder, EncoderIter, EncoderType};
 use crate::decoder::Decoder;
 use crate::hf::{self, JsonLoadError};
+use crate::normalizer::Normalizer;
+use crate::postprocessor::PostProcessor;
 use crate::pretok::{Pretok, PretokType};
 use crate::types::TokenId;
 
@@ -24,28 +26,34 @@ use crate::types::TokenId;
 /// ```ignore
 /// use tokie::Tokenizer;
 ///
-/// let tokenizer = Tokenizer::from_json("tokenizer.json", PretokenizerType::Gpt2)?;
+/// let tokenizer = Tokenizer::from_json("tokenizer.json")?;
 ///
-/// let tokens = tokenizer.encode("Hello, world!");
+/// let tokens = tokenizer.encode("Hello, world!", false);
 /// let text = tokenizer.decode(&tokens);
 /// ```
 pub struct Tokenizer {
     /// The underlying BPE encoder.
-    encoder: BytePairEncoder,
+    encoder: Encoder,
     /// The decoder for converting tokens back to bytes.
     decoder: Decoder,
     /// Optional pre-tokenizer for splitting text before BPE.
     pretokenizer: Option<Pretok>,
     /// The type of pretokenizer (for serialization).
     pretokenizer_type: PretokType,
+    /// Text normalizer (lowercase, NFC, etc.).
+    normalizer: Normalizer,
+    /// Post-processor for adding special tokens.
+    post_processor: PostProcessor,
 }
 
 impl Tokenizer {
-    /// Create a new tokenizer with an encoder, decoder, and pretokenizer type.
+    /// Create a new tokenizer with all components.
     pub fn new(
-        encoder: BytePairEncoder,
+        encoder: Encoder,
         decoder: Decoder,
         pretokenizer_type: PretokType,
+        normalizer: Normalizer,
+        post_processor: PostProcessor,
     ) -> Self {
         let pretokenizer = pretokenizer_type.to_pretok();
         Self {
@@ -53,6 +61,8 @@ impl Tokenizer {
             decoder,
             pretokenizer,
             pretokenizer_type,
+            normalizer,
+            post_processor,
         }
     }
 
@@ -61,23 +71,54 @@ impl Tokenizer {
         self.pretokenizer_type
     }
 
+    /// Get the normalizer.
+    pub fn normalizer(&self) -> Normalizer {
+        self.normalizer
+    }
+
+    /// Get the post-processor.
+    pub fn post_processor(&self) -> &PostProcessor {
+        &self.post_processor
+    }
+
+    /// Get the encoder type.
+    pub fn encoder_type(&self) -> EncoderType {
+        self.encoder.encoder_type()
+    }
+
     /// Load a tokenizer from a HuggingFace tokenizer.json file.
     ///
     /// The pretokenizer type is auto-detected from the JSON.
+    /// Uses Backtracking encoder by default.
     ///
     /// # Example
     /// ```ignore
     /// use tokie::Tokenizer;
     ///
     /// let tokenizer = Tokenizer::from_json("tokenizer.json")?;
-    /// let tokens = tokenizer.encode("Hello, world!");
+    /// let tokens = tokenizer.encode("Hello, world!", false);
     /// ```
     pub fn from_json(path: impl AsRef<Path>) -> Result<Self, JsonLoadError> {
         hf::from_json(path)
     }
 
+    /// Load a tokenizer from a HuggingFace tokenizer.json file with specific encoder type.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use tokie::{Tokenizer, EncoderType};
+    ///
+    /// let tokenizer = Tokenizer::from_json_with_encoder("tokenizer.json", EncoderType::Simple)?;
+    /// ```
+    pub fn from_json_with_encoder(
+        path: impl AsRef<Path>,
+        encoder_type: EncoderType,
+    ) -> Result<Self, JsonLoadError> {
+        hf::from_json_with_encoder(path, encoder_type)
+    }
+
     /// Get a reference to the underlying BPE encoder.
-    pub fn encoder(&self) -> &BytePairEncoder {
+    pub fn encoder(&self) -> &Encoder {
         &self.encoder
     }
 
@@ -102,25 +143,39 @@ impl Tokenizer {
 
     /// Encode text into token IDs.
     ///
-    /// If a pre-tokenizer is configured, the text is first split into pieces,
-    /// then each piece is BPE-encoded. For texts >= 10KB, uses chunked parallel
-    /// encoding where the text is split at whitespace boundaries and each chunk
-    /// is pretokenized + encoded in parallel.
+    /// Text is first normalized (if a normalizer is configured), then split
+    /// by the pre-tokenizer (if configured), then each piece is BPE-encoded.
+    /// For texts >= 10KB, uses chunked parallel encoding with per-thread normalization.
+    ///
+    /// If `add_special_tokens` is true, post-processing is applied (e.g., adding
+    /// `[CLS]` and `[SEP]` for BERT, or `<|begin_of_text|>` for LLaMA 3).
     ///
     /// # Example
     /// ```ignore
-    /// let tokens = tokenizer.encode("Hello, world!");
+    /// // Without special tokens (default for most use cases)
+    /// let tokens = tokenizer.encode("Hello, world!", false);
+    ///
+    /// // With special tokens (for model input)
+    /// let tokens = tokenizer.encode("Hello, world!", true);
     /// ```
-    pub fn encode(&self, text: &str) -> Vec<TokenId> {
-        match &self.pretokenizer {
-            Some(pretok) => {
-                if text.len() >= Self::PARALLEL_CHUNK_THRESHOLD {
-                    self.encode_parallel(text, pretok)
-                } else {
-                    self.encode_sequential(text, pretok)
-                }
+    pub fn encode(&self, text: &str, add_special_tokens: bool) -> Vec<TokenId> {
+        let tokens = if text.len() >= Self::PARALLEL_CHUNK_THRESHOLD {
+            // Parallel path for large texts
+            self.encode_parallel(text, self.pretokenizer.as_ref())
+        } else {
+            // Sequential path
+            let normalized = self.normalizer.normalize(text);
+            match &self.pretokenizer {
+                Some(pretok) => self.encode_sequential(normalized.as_ref(), pretok),
+                None => self.encoder.encode(normalized.as_ref().as_bytes()),
             }
-            None => self.encoder.encode(text.as_bytes()),
+        };
+
+        // Apply post-processing if requested
+        if add_special_tokens {
+            self.post_processor.process(&tokens)
+        } else {
+            tokens
         }
     }
 
@@ -134,26 +189,48 @@ impl Tokenizer {
     }
 
     /// Parallel encoding: split text into chunks at whitespace boundaries,
-    /// then each thread does pretokenization + BPE on its chunk.
-    fn encode_parallel(&self, text: &str, pretok: &Pretok) -> Vec<TokenId> {
+    /// then each thread does normalization + pretokenization + encoding on its chunk.
+    ///
+    /// This is more efficient than normalizing the entire text first because:
+    /// 1. Many chunks will be pure ASCII and can skip NFD normalization
+    /// 2. Normalization work is parallelized across threads
+    /// 3. Better cache locality (each thread works on its own data)
+    ///
+    /// For SentencePiece tokenizers (Metaspace normalizer), we split at metaspace
+    /// boundaries instead of spaces, since the normalizer replaces spaces with ▁.
+    ///
+    /// When `pretok` is None (e.g., Unigram models), the encoder is called directly
+    /// on normalized chunks without pretokenization.
+    fn encode_parallel(&self, text: &str, pretok: Option<&Pretok>) -> Vec<TokenId> {
         let bytes = text.as_bytes();
         let num_cpus = thread::available_parallelism()
             .map(|p| p.get())
             .unwrap_or(1);
 
-        // Split into ~num_cpus chunks at whitespace boundaries
+        let target_size = bytes.len() / num_cpus;
+
+        // Split at space boundaries in the raw text.
+        // Each thread will normalize its chunk (which may add metaspaces for SentencePiece).
+        // We use prefix() to keep the space with the following chunk (matches how
+        // SentencePiece prepends ▁ to words).
         let chunks: Vec<&[u8]> = chunk(bytes)
-            .size(bytes.len() / num_cpus)
-            .delimiters(b" \n")
+            .size(target_size)
+            .delimiters(b" ")
             .prefix()
             .collect();
 
         if chunks.len() <= 1 {
-            return self.encode_sequential(text, pretok);
+            // Single chunk: normalize and encode sequentially
+            let normalized = self.normalizer.normalize(text);
+            return match pretok {
+                Some(p) => self.encode_sequential(normalized.as_ref(), p),
+                None => self.encoder.encode(normalized.as_ref().as_bytes()),
+            };
         }
 
-        // Each thread: pretokenize + BPE encode its chunk
+        // Each thread: normalize + optionally pretokenize + encode its chunk
         let encoder = &self.encoder;
+        let normalizer = &self.normalizer;
         let results: Vec<Vec<TokenId>> = thread::scope(|s| {
             chunks
                 .iter()
@@ -162,10 +239,22 @@ impl Tokenizer {
                         // SAFETY: Input was valid UTF-8, and we only split at ASCII
                         // whitespace (space/newline), preserving UTF-8 validity.
                         let chunk_str = unsafe { std::str::from_utf8_unchecked(chunk_bytes) };
-                        pretok
-                            .split(chunk_str)
-                            .flat_map(|piece| encoder.encode(piece.as_bytes()))
-                            .collect()
+
+                        // Normalize this chunk
+                        let normalized = normalizer.normalize(chunk_str);
+
+                        match pretok {
+                            Some(p) => {
+                                // With pretokenizer: split then encode each piece
+                                p.split(normalized.as_ref())
+                                    .flat_map(|piece| encoder.encode(piece.as_bytes()))
+                                    .collect()
+                            }
+                            None => {
+                                // Without pretokenizer: encode directly (Unigram, etc.)
+                                encoder.encode(normalized.as_ref().as_bytes())
+                            }
+                        }
                     })
                 })
                 .collect::<Vec<_>>()
@@ -203,7 +292,7 @@ impl Tokenizer {
     /// Returns a streaming iterator over encoded tokens from bytes.
     ///
     /// Bypasses pre-tokenization for true streaming.
-    pub fn encode_bytes_iter<'a>(&'a self, bytes: &'a [u8]) -> EncodeIter<'a> {
+    pub fn encode_bytes_iter<'a>(&'a self, bytes: &'a [u8]) -> EncoderIter<'a> {
         self.encoder.encode_iter(bytes)
     }
 
@@ -226,11 +315,10 @@ impl Tokenizer {
 
     /// Count tokens without storing them.
     ///
-    /// Skips pretokenization for speed - produces identical counts for natural text.
-    /// Note: Uses `encode().len()` which is faster than `encode_iter().count()`
-    /// for full counts because the streaming iterator has backtracking overhead.
+    /// Uses the same parallelized encoding path as `encode()`.
+    /// Does not include special tokens in the count.
     pub fn count_tokens(&self, text: &str) -> usize {
-        self.encoder.encode(text.as_bytes()).len()
+        self.encode(text, false).len()
     }
 
     /// Returns a lazy token count that supports comparison operators.
@@ -257,7 +345,7 @@ impl Tokenizer {
 ///
 /// Note: Each `TokenCount` can only be compared once (the iterator is consumed).
 pub struct TokenCount<'a> {
-    iter: RefCell<Option<EncodeIter<'a>>>,
+    iter: RefCell<Option<EncoderIter<'a>>>,
 }
 
 impl PartialEq<usize> for TokenCount<'_> {
@@ -279,9 +367,9 @@ pub struct TokenizeIter<'a> {
     tokenizer: &'a Tokenizer,
     // Current state for pretokenized case
     pretokens: Option<Box<dyn Iterator<Item = &'a str> + 'a>>,
-    current_encoder_iter: Option<EncodeIter<'a>>,
+    current_encoder_iter: Option<EncoderIter<'a>>,
     // For non-pretokenized case
-    bytes_iter: Option<EncodeIter<'a>>,
+    bytes_iter: Option<EncoderIter<'a>>,
 }
 
 impl<'a> TokenizeIter<'a> {
@@ -343,30 +431,31 @@ impl std::iter::FusedIterator for TokenizeIter<'_> {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::encoder::BacktrackingBytePairEncoder;
 
     fn make_test_tokenizer() -> Tokenizer {
         // Simple encoder: a=0, b=1, c=2, space=3
         // Merges: a+b->ab(256)
         let base_tokens: Vec<Vec<u8>> = (0u8..=255).map(|b| vec![b]).collect();
         let merges = vec![(b'a' as u32, b'b' as u32)]; // a+b -> ab
-        let (encoder, token_bytes) = BytePairEncoder::from_merges(&merges, &base_tokens);
+        let (encoder, token_bytes) = BacktrackingBytePairEncoder::from_merges(&merges, &base_tokens);
         let decoder = Decoder::new(token_bytes);
-        Tokenizer::new(encoder, decoder, PretokType::None)
+        Tokenizer::new(Encoder::Backtracking(encoder), decoder, PretokType::None, Normalizer::None, PostProcessor::None)
     }
 
     fn make_test_tokenizer_with_pretokenizer() -> Tokenizer {
         let base_tokens: Vec<Vec<u8>> = (0u8..=255).map(|b| vec![b]).collect();
         let merges = vec![(b'a' as u32, b'b' as u32)]; // a+b -> ab
-        let (encoder, token_bytes) = BytePairEncoder::from_merges(&merges, &base_tokens);
+        let (encoder, token_bytes) = BacktrackingBytePairEncoder::from_merges(&merges, &base_tokens);
         let decoder = Decoder::new(token_bytes);
-        Tokenizer::new(encoder, decoder, PretokType::Gpt2)
+        Tokenizer::new(Encoder::Backtracking(encoder), decoder, PretokType::Gpt2, Normalizer::None, PostProcessor::None)
     }
 
     #[test]
     fn test_tokenizer_no_pretokenizer() {
         let tokenizer = make_test_tokenizer();
 
-        let tokens = tokenizer.encode("abc");
+        let tokens = tokenizer.encode("abc", false);
         // 'a'+'b' merges to token 256, then 'c' is token 99
         assert_eq!(tokens.len(), 2);
     }
@@ -376,7 +465,7 @@ mod tests {
         let tokenizer = make_test_tokenizer_with_pretokenizer();
 
         // "Hello world" gets pre-tokenized to ["Hello", " world"]
-        let tokens = tokenizer.encode("Hello world");
+        let tokens = tokenizer.encode("Hello world", false);
         assert!(!tokens.is_empty());
 
         // Verify decode roundtrip
@@ -390,7 +479,7 @@ mod tests {
 
         let text = "Hello world";
         let count = tokenizer.count_tokens(text);
-        let tokens = tokenizer.encode(text);
+        let tokens = tokenizer.encode(text, false);
         assert_eq!(count, tokens.len());
     }
 
@@ -430,7 +519,7 @@ mod tests {
 
         let text = "Hello world";
         let tokens: Vec<_> = tokenizer.encode_iter(text).collect();
-        let expected = tokenizer.encode(text);
+        let expected = tokenizer.encode(text, false);
         assert_eq!(tokens, expected);
     }
 

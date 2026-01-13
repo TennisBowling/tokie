@@ -12,8 +12,11 @@
 //! // Load from HuggingFace tokenizer.json
 //! let tokenizer = Tokenizer::from_json("tokenizer.json")?;
 //!
-//! // Encode text
-//! let tokens = tokenizer.encode("Hello, world!");
+//! // Encode text (without special tokens)
+//! let tokens = tokenizer.encode("Hello, world!", false);
+//!
+//! // Encode with special tokens (for model input)
+//! let tokens_with_special = tokenizer.encode("Hello, world!", true);
 //!
 //! // Decode back
 //! let text = tokenizer.decode(&tokens).unwrap();
@@ -41,26 +44,30 @@
 //! # Architecture
 //!
 //! - [`Tokenizer`] - High-level API combining pre-tokenization + BPE encoding + decoding
-//! - [`BytePairEncoder`] - Low-level BPE encoder (bytes → tokens)
+//! - [`encoder`] - BPE encoders (backtracking for tiktoken, heap for LLaMA)
 //! - [`Decoder`] - Token ID to bytes decoder (can be shared across encoder types)
 //! - [`pretok`] - Fast pretokenizers (GPT-2: 566 MiB/s, cl100k, o200k)
 
-mod bpe;
-mod compatibility;
 mod decoder;
+pub mod diff;
+pub mod encoder;
 pub mod hf;
 #[cfg(feature = "hf")]
 mod hub;
+pub mod normalizer;
+mod postprocessor;
 pub mod pretok;
 mod serde;
 mod tokenizer;
 mod types;
 
-pub use bpe::{BytePairEncoder, EncodeIter};
+pub use encoder::{BacktrackingBytePairEncoder, BytePairEncoder, EncodeIter, Encoder, EncoderIter, EncoderType};
 pub use decoder::Decoder;
 pub use hf::JsonLoadError;
 #[cfg(feature = "hf")]
 pub use hub::{FromPretrainedOptions, HubError};
+pub use normalizer::{bert_uncased_normalize, clean_text, fnr, metaspace_normalize, strip_accents, FnrFinder, Normalizer};
+pub use postprocessor::PostProcessor;
 pub use pretok::{Pretok, PretokIter, PretokType, RegexPretok};
 pub use serde::SerdeError;
 pub use tokenizer::{TokenCount, Tokenizer, TokenizeIter};

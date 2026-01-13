@@ -35,6 +35,8 @@ pub enum PretokType {
     Gpt2 = 1,
     Cl100k = 2,
     O200k = 3,
+    Bert = 4,
+    Voyage = 5,
 }
 
 impl PretokType {
@@ -45,6 +47,8 @@ impl PretokType {
             PretokType::Gpt2 => Some(Pretok::GPT2),
             PretokType::Cl100k => Some(Pretok::CL100K),
             PretokType::O200k => Some(Pretok::O200K),
+            PretokType::Bert => Some(Pretok::BERT),
+            PretokType::Voyage => Some(Pretok::VOYAGE),
         }
     }
 }

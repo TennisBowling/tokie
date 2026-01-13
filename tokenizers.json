@@ -1,0 +1,1085 @@
+[
+  {
+    "provider": "OpenAI",
+    "model": "GPT-2",
+    "vocab_size": 50257,
+    "encoder": "Backtracking",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 6.9,
+      "hf_load_ms": 34.7,
+      "load_speedup": 5.0,
+      "tokie_throughput_mbps": 294.0,
+      "hf_throughput_mbps": 4.3,
+      "throughput_speedup": 69.1
+    }
+  },
+  {
+    "provider": "OpenAI",
+    "model": "GPT-3",
+    "vocab_size": 50257,
+    "encoder": "Backtracking",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 6.9,
+      "hf_load_ms": 34.7,
+      "load_speedup": 5.0,
+      "tokie_throughput_mbps": 294.0,
+      "hf_throughput_mbps": 4.3,
+      "throughput_speedup": 69.1
+    }
+  },
+  {
+    "provider": "OpenAI",
+    "model": "GPT-3.5",
+    "vocab_size": 50281,
+    "encoder": "Backtracking",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 6.9,
+      "hf_load_ms": 34.7,
+      "load_speedup": 5.0,
+      "tokie_throughput_mbps": 294.0,
+      "hf_throughput_mbps": 4.3,
+      "throughput_speedup": 69.1
+    }
+  },
+  {
+    "provider": "OpenAI",
+    "model": "GPT-4",
+    "vocab_size": 100256,
+    "encoder": "Backtracking",
+    "pretokenizer": "Cl100k",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 12.4,
+      "hf_load_ms": 65.5,
+      "load_speedup": 5.3,
+      "tokie_throughput_mbps": 296.1,
+      "hf_throughput_mbps": 4.3,
+      "throughput_speedup": 69.0
+    }
+  },
+  {
+    "provider": "OpenAI",
+    "model": "GPT-4 Turbo",
+    "vocab_size": 100256,
+    "encoder": "Backtracking",
+    "pretokenizer": "Cl100k",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 12.4,
+      "hf_load_ms": 65.5,
+      "load_speedup": 5.3,
+      "tokie_throughput_mbps": 296.1,
+      "hf_throughput_mbps": 4.3,
+      "throughput_speedup": 69.0
+    }
+  },
+  {
+    "provider": "OpenAI",
+    "model": "GPT-4o",
+    "vocab_size": 200000,
+    "encoder": "Backtracking",
+    "pretokenizer": "O200k",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 23.0,
+      "hf_load_ms": 152.3,
+      "load_speedup": 6.6,
+      "tokie_throughput_mbps": 272.3,
+      "hf_throughput_mbps": 4.4,
+      "throughput_speedup": 62.5
+    }
+  },
+  {
+    "provider": "OpenAI",
+    "model": "GPT-4o mini",
+    "vocab_size": 200000,
+    "encoder": "Backtracking",
+    "pretokenizer": "O200k",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 23.0,
+      "hf_load_ms": 152.3,
+      "load_speedup": 6.6,
+      "tokie_throughput_mbps": 272.3,
+      "hf_throughput_mbps": 4.4,
+      "throughput_speedup": 62.5
+    }
+  },
+  {
+    "provider": "OpenAI",
+    "model": "text-davinci-003",
+    "vocab_size": 50281,
+    "encoder": "Backtracking",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 6.9,
+      "hf_load_ms": 34.7,
+      "load_speedup": 5.0,
+      "tokie_throughput_mbps": 294.0,
+      "hf_throughput_mbps": 4.3,
+      "throughput_speedup": 69.1
+    }
+  },
+  {
+    "provider": "OpenAI",
+    "model": "text-embedding",
+    "vocab_size": 100256,
+    "encoder": "Backtracking",
+    "pretokenizer": "Cl100k",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 12.4,
+      "hf_load_ms": 65.5,
+      "load_speedup": 5.3,
+      "tokie_throughput_mbps": 296.1,
+      "hf_throughput_mbps": 4.3,
+      "throughput_speedup": 69.0
+    }
+  },
+  {
+    "provider": "OpenAI",
+    "model": "text-embedding-3",
+    "vocab_size": 100000,
+    "encoder": "Backtracking",
+    "pretokenizer": "Cl100k",
+    "normalizer": "None",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "OpenAI",
+    "model": "GPT-5",
+    "vocab_size": 200000,
+    "encoder": "Backtracking",
+    "pretokenizer": "O200k",
+    "normalizer": "None",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Meta",
+    "model": "Llama 1",
+    "vocab_size": 32000,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 10.4,
+      "hf_load_ms": 29.7,
+      "load_speedup": 2.9,
+      "tokie_throughput_mbps": 20.3,
+      "hf_throughput_mbps": 2.0,
+      "throughput_speedup": 10.2
+    }
+  },
+  {
+    "provider": "Meta",
+    "model": "Llama 2",
+    "vocab_size": 32000,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 10.4,
+      "hf_load_ms": 29.7,
+      "load_speedup": 2.9,
+      "tokie_throughput_mbps": 20.3,
+      "hf_throughput_mbps": 2.0,
+      "throughput_speedup": 10.2
+    }
+  },
+  {
+    "provider": "Meta",
+    "model": "Llama 3",
+    "vocab_size": 128000,
+    "encoder": "Backtracking",
+    "pretokenizer": "Cl100k",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 13.1,
+      "hf_load_ms": 130.6,
+      "load_speedup": 10.0,
+      "tokie_throughput_mbps": 334.9,
+      "hf_throughput_mbps": 4.9,
+      "throughput_speedup": 69.0
+    }
+  },
+  {
+    "provider": "Meta",
+    "model": "Llama 3.1",
+    "vocab_size": 128000,
+    "encoder": "Backtracking",
+    "pretokenizer": "Cl100k",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 13.1,
+      "hf_load_ms": 130.6,
+      "load_speedup": 10.0,
+      "tokie_throughput_mbps": 334.9,
+      "hf_throughput_mbps": 4.9,
+      "throughput_speedup": 69.0
+    }
+  },
+  {
+    "provider": "Meta",
+    "model": "Llama 3.2",
+    "vocab_size": 128000,
+    "encoder": "Backtracking",
+    "pretokenizer": "Cl100k",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 13.1,
+      "hf_load_ms": 130.6,
+      "load_speedup": 10.0,
+      "tokie_throughput_mbps": 334.9,
+      "hf_throughput_mbps": 4.9,
+      "throughput_speedup": 69.0
+    }
+  },
+  {
+    "provider": "Meta",
+    "model": "Llama 4",
+    "vocab_size": 128000,
+    "encoder": "Backtracking",
+    "pretokenizer": "Cl100k",
+    "normalizer": "None",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Meta",
+    "model": "Code Llama",
+    "vocab_size": 32016,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 4.6,
+      "hf_load_ms": 30.3,
+      "load_speedup": 6.6,
+      "tokie_throughput_mbps": 22.2,
+      "hf_throughput_mbps": 2.0,
+      "throughput_speedup": 11.0
+    }
+  },
+  {
+    "provider": "Meta",
+    "model": "RoBERTa",
+    "vocab_size": 50265,
+    "encoder": "Simple",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 3.8,
+      "hf_load_ms": 31.4,
+      "load_speedup": 8.3,
+      "tokie_throughput_mbps": 327.4,
+      "hf_throughput_mbps": 4.3,
+      "throughput_speedup": 76.4
+    }
+  },
+  {
+    "provider": "Meta",
+    "model": "XLM-RoBERTa",
+    "vocab_size": 250002,
+    "encoder": "Unigram",
+    "pretokenizer": "None",
+    "normalizer": "SentencePiece",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 29.8,
+      "hf_load_ms": 346.2,
+      "load_speedup": 11.6,
+      "tokie_throughput_mbps": 53.9,
+      "hf_throughput_mbps": 3.6,
+      "throughput_speedup": 15.0
+    }
+  },
+  {
+    "provider": "Meta",
+    "model": "DeBERTa",
+    "vocab_size": 128000,
+    "encoder": "Backtracking",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": true,
+    "performance": null
+  },
+  {
+    "provider": "Meta",
+    "model": "DeBERTa v3",
+    "vocab_size": 128000,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": true,
+    "performance": null
+  },
+  {
+    "provider": "Google",
+    "model": "BERT",
+    "vocab_size": 30522,
+    "encoder": "WordPiece",
+    "pretokenizer": "Bert",
+    "normalizer": "BertUncased",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 4.8,
+      "hf_load_ms": 11.1,
+      "load_speedup": 2.3,
+      "tokie_throughput_mbps": 331.2,
+      "hf_throughput_mbps": 3.7,
+      "throughput_speedup": 89.0
+    }
+  },
+  {
+    "provider": "Google",
+    "model": "DistilBERT",
+    "vocab_size": 30522,
+    "encoder": "WordPiece",
+    "pretokenizer": "Bert",
+    "normalizer": "BertUncased",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 4.8,
+      "hf_load_ms": 11.1,
+      "load_speedup": 2.3,
+      "tokie_throughput_mbps": 331.2,
+      "hf_throughput_mbps": 3.7,
+      "throughput_speedup": 89.0
+    }
+  },
+  {
+    "provider": "Google",
+    "model": "ELECTRA",
+    "vocab_size": 30522,
+    "encoder": "WordPiece",
+    "pretokenizer": "Bert",
+    "normalizer": "BertUncased",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 4.8,
+      "hf_load_ms": 11.1,
+      "load_speedup": 2.3,
+      "tokie_throughput_mbps": 331.2,
+      "hf_throughput_mbps": 3.7,
+      "throughput_speedup": 89.0
+    }
+  },
+  {
+    "provider": "Google",
+    "model": "ALBERT",
+    "vocab_size": 30000,
+    "encoder": "Unigram",
+    "pretokenizer": "None",
+    "normalizer": "SentencePieceLowercase",
+    "supported": true,
+    "performance": null
+  },
+  {
+    "provider": "Google",
+    "model": "T5",
+    "vocab_size": 32100,
+    "encoder": "Unigram",
+    "pretokenizer": "None",
+    "normalizer": "SentencePiece",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 4.9,
+      "hf_load_ms": 27.6,
+      "load_speedup": 5.7,
+      "tokie_throughput_mbps": 56.7,
+      "hf_throughput_mbps": 3.8,
+      "throughput_speedup": 14.9
+    }
+  },
+  {
+    "provider": "Google",
+    "model": "T5 Base",
+    "vocab_size": 32100,
+    "encoder": "Unigram",
+    "pretokenizer": "None",
+    "normalizer": "SentencePiece",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 4.9,
+      "hf_load_ms": 27.6,
+      "load_speedup": 5.7,
+      "tokie_throughput_mbps": 56.7,
+      "hf_throughput_mbps": 3.8,
+      "throughput_speedup": 14.9
+    }
+  },
+  {
+    "provider": "Google",
+    "model": "mT5",
+    "vocab_size": 250000,
+    "encoder": "Unigram",
+    "pretokenizer": "None",
+    "normalizer": "SentencePiece",
+    "supported": true,
+    "performance": null
+  },
+  {
+    "provider": "Google",
+    "model": "ModernBERT",
+    "vocab_size": 50280,
+    "encoder": "Backtracking",
+    "pretokenizer": "Gpt2",
+    "normalizer": "Nfc",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 7.3,
+      "hf_load_ms": 67.2,
+      "load_speedup": 9.2,
+      "tokie_throughput_mbps": 145.9,
+      "hf_throughput_mbps": 4.0,
+      "throughput_speedup": 36.4
+    }
+  },
+  {
+    "provider": "Google",
+    "model": "Gemma",
+    "vocab_size": 256000,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": true,
+    "performance": null
+  },
+  {
+    "provider": "Google",
+    "model": "Gemma 2",
+    "vocab_size": 256000,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": true,
+    "performance": null
+  },
+  {
+    "provider": "Google",
+    "model": "Gemini",
+    "vocab_size": 256000,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Google",
+    "model": "Gemini 2",
+    "vocab_size": 256000,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Google",
+    "model": "PaLM",
+    "vocab_size": 256000,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Microsoft",
+    "model": "Phi-1/2",
+    "vocab_size": 51200,
+    "encoder": "Backtracking",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 7.4,
+      "hf_load_ms": 29.0,
+      "load_speedup": 3.9,
+      "tokie_throughput_mbps": 307.7,
+      "hf_throughput_mbps": 4.3,
+      "throughput_speedup": 71.3
+    }
+  },
+  {
+    "provider": "Microsoft",
+    "model": "Phi-3",
+    "vocab_size": 32064,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 4.3,
+      "hf_load_ms": 32.7,
+      "load_speedup": 7.7,
+      "tokie_throughput_mbps": 21.1,
+      "hf_throughput_mbps": 2.0,
+      "throughput_speedup": 10.3
+    }
+  },
+  {
+    "provider": "Mistral",
+    "model": "Mistral 7B",
+    "vocab_size": 32000,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 10.4,
+      "hf_load_ms": 29.7,
+      "load_speedup": 2.9,
+      "tokie_throughput_mbps": 20.3,
+      "hf_throughput_mbps": 2.0,
+      "throughput_speedup": 10.2
+    }
+  },
+  {
+    "provider": "Mistral",
+    "model": "Mixtral 8x7B",
+    "vocab_size": 32000,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 10.4,
+      "hf_load_ms": 29.7,
+      "load_speedup": 2.9,
+      "tokie_throughput_mbps": 20.3,
+      "hf_throughput_mbps": 2.0,
+      "throughput_speedup": 10.2
+    }
+  },
+  {
+    "provider": "Mistral",
+    "model": "Mistral Large",
+    "vocab_size": 32768,
+    "encoder": "Simple",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": true,
+    "performance": null
+  },
+  {
+    "provider": "Mistral",
+    "model": "Mistral Nemo",
+    "vocab_size": 131072,
+    "encoder": "Simple",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 13.4,
+      "hf_load_ms": 134.8,
+      "load_speedup": 10.1,
+      "tokie_throughput_mbps": 332.6,
+      "hf_throughput_mbps": 5.0,
+      "throughput_speedup": 66.3
+    }
+  },
+  {
+    "provider": "Alibaba",
+    "model": "Qwen",
+    "vocab_size": 151936,
+    "encoder": "Backtracking",
+    "pretokenizer": "Cl100k",
+    "normalizer": "Nfc",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 21.0,
+      "hf_load_ms": 106.0,
+      "load_speedup": 5.1,
+      "tokie_throughput_mbps": 305.7,
+      "hf_throughput_mbps": 4.0,
+      "throughput_speedup": 76.5
+    }
+  },
+  {
+    "provider": "Alibaba",
+    "model": "Qwen 2",
+    "vocab_size": 151936,
+    "encoder": "Backtracking",
+    "pretokenizer": "Cl100k",
+    "normalizer": "Nfc",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 21.0,
+      "hf_load_ms": 106.0,
+      "load_speedup": 5.1,
+      "tokie_throughput_mbps": 305.7,
+      "hf_throughput_mbps": 4.0,
+      "throughput_speedup": 76.5
+    }
+  },
+  {
+    "provider": "Alibaba",
+    "model": "Qwen 3",
+    "vocab_size": 152000,
+    "encoder": "Backtracking",
+    "pretokenizer": "Cl100k",
+    "normalizer": "Nfc",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Voyage",
+    "model": "Voyage 3",
+    "vocab_size": 151665,
+    "encoder": "Backtracking",
+    "pretokenizer": "Voyage",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 22.2,
+      "hf_load_ms": 105.1,
+      "load_speedup": 4.7,
+      "tokie_throughput_mbps": 280.5,
+      "hf_throughput_mbps": 4.0,
+      "throughput_speedup": 70.8
+    }
+  },
+  {
+    "provider": "Voyage",
+    "model": "Voyage 3 Large",
+    "vocab_size": 151665,
+    "encoder": "Backtracking",
+    "pretokenizer": "Voyage",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 22.2,
+      "hf_load_ms": 105.1,
+      "load_speedup": 4.7,
+      "tokie_throughput_mbps": 280.5,
+      "hf_throughput_mbps": 4.0,
+      "throughput_speedup": 70.8
+    }
+  },
+  {
+    "provider": "Voyage",
+    "model": "Voyage Code 3",
+    "vocab_size": 151665,
+    "encoder": "Backtracking",
+    "pretokenizer": "Voyage",
+    "normalizer": "None",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 22.2,
+      "hf_load_ms": 105.1,
+      "load_speedup": 4.7,
+      "tokie_throughput_mbps": 280.5,
+      "hf_throughput_mbps": 4.0,
+      "throughput_speedup": 70.8
+    }
+  },
+  {
+    "provider": "Intfloat",
+    "model": "E5",
+    "vocab_size": 30522,
+    "encoder": "WordPiece",
+    "pretokenizer": "Bert",
+    "normalizer": "BertUncased",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 4.8,
+      "hf_load_ms": 11.1,
+      "load_speedup": 2.3,
+      "tokie_throughput_mbps": 331.2,
+      "hf_throughput_mbps": 3.7,
+      "throughput_speedup": 89.0
+    }
+  },
+  {
+    "provider": "Jina",
+    "model": "Jina Embeddings v2",
+    "vocab_size": 30528,
+    "encoder": "WordPiece",
+    "pretokenizer": "Bert",
+    "normalizer": "BertUncased",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 4.8,
+      "hf_load_ms": 11.1,
+      "load_speedup": 2.3,
+      "tokie_throughput_mbps": 331.2,
+      "hf_throughput_mbps": 3.7,
+      "throughput_speedup": 89.0
+    }
+  },
+  {
+    "provider": "Jina",
+    "model": "Jina Embeddings v3",
+    "vocab_size": 30000,
+    "encoder": "Backtracking",
+    "pretokenizer": "Bert",
+    "normalizer": "BertUncased",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "SentenceTransformers",
+    "model": "MiniLM",
+    "vocab_size": 30522,
+    "encoder": "WordPiece",
+    "pretokenizer": "Bert",
+    "normalizer": "BertUncased",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 4.8,
+      "hf_load_ms": 11.1,
+      "load_speedup": 2.3,
+      "tokie_throughput_mbps": 331.2,
+      "hf_throughput_mbps": 3.7,
+      "throughput_speedup": 89.0
+    }
+  },
+  {
+    "provider": "Thenlper",
+    "model": "GTE",
+    "vocab_size": 30522,
+    "encoder": "WordPiece",
+    "pretokenizer": "Bert",
+    "normalizer": "BertUncased",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 4.8,
+      "hf_load_ms": 11.1,
+      "load_speedup": 2.3,
+      "tokie_throughput_mbps": 331.2,
+      "hf_throughput_mbps": 3.7,
+      "throughput_speedup": 89.0
+    }
+  },
+  {
+    "provider": "BAAI",
+    "model": "BGE",
+    "vocab_size": 30522,
+    "encoder": "WordPiece",
+    "pretokenizer": "Bert",
+    "normalizer": "BertUncased",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 4.8,
+      "hf_load_ms": 11.1,
+      "load_speedup": 2.3,
+      "tokie_throughput_mbps": 331.2,
+      "hf_throughput_mbps": 3.7,
+      "throughput_speedup": 89.0
+    }
+  },
+  {
+    "provider": "Nomic",
+    "model": "Nomic Embed",
+    "vocab_size": 30522,
+    "encoder": "WordPiece",
+    "pretokenizer": "Bert",
+    "normalizer": "BertUncased",
+    "supported": true,
+    "performance": {
+      "tokie_load_ms": 4.8,
+      "hf_load_ms": 11.1,
+      "load_speedup": 2.3,
+      "tokie_throughput_mbps": 331.2,
+      "hf_throughput_mbps": 3.7,
+      "throughput_speedup": 89.0
+    }
+  },
+  {
+    "provider": "MosaicML",
+    "model": "MPT",
+    "vocab_size": 50432,
+    "encoder": "Backtracking",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": true,
+    "performance": null
+  },
+  {
+    "provider": "BigCode",
+    "model": "StarCoder",
+    "vocab_size": 49152,
+    "encoder": "Backtracking",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": true,
+    "performance": null
+  },
+  {
+    "provider": "Anthropic",
+    "model": "Claude",
+    "vocab_size": 100000,
+    "encoder": "Backtracking",
+    "pretokenizer": "Cl100k",
+    "normalizer": "None",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Cohere",
+    "model": "Command R",
+    "vocab_size": 256000,
+    "encoder": "Backtracking",
+    "pretokenizer": null,
+    "normalizer": null,
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Cohere",
+    "model": "Command R+",
+    "vocab_size": 256000,
+    "encoder": "Backtracking",
+    "pretokenizer": null,
+    "normalizer": null,
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Cohere",
+    "model": "Cohere Embed",
+    "vocab_size": 256000,
+    "encoder": null,
+    "pretokenizer": null,
+    "normalizer": null,
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "DeepSeek",
+    "model": "DeepSeek",
+    "vocab_size": 102400,
+    "encoder": "Simple",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "DeepSeek",
+    "model": "DeepSeek V2/V3",
+    "vocab_size": 129280,
+    "encoder": "Simple",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "DeepSeek",
+    "model": "DeepSeek R1",
+    "vocab_size": 129280,
+    "encoder": "Simple",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "xAI",
+    "model": "Grok",
+    "vocab_size": 131000,
+    "encoder": "Backtracking",
+    "pretokenizer": null,
+    "normalizer": null,
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "xAI",
+    "model": "Grok 2",
+    "vocab_size": 131000,
+    "encoder": "Backtracking",
+    "pretokenizer": null,
+    "normalizer": null,
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "TII",
+    "model": "Falcon",
+    "vocab_size": 65024,
+    "encoder": "Backtracking",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "01.AI",
+    "model": "Yi",
+    "vocab_size": 64000,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "01.AI",
+    "model": "Yi 1.5",
+    "vocab_size": 64000,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "AI21",
+    "model": "Jamba",
+    "vocab_size": 256000,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "AI2",
+    "model": "OLMo",
+    "vocab_size": 50280,
+    "encoder": "Backtracking",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "AI2",
+    "model": "OLMo 2",
+    "vocab_size": 100278,
+    "encoder": "Backtracking",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Baichuan",
+    "model": "Baichuan",
+    "vocab_size": 64000,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Baichuan",
+    "model": "Baichuan 2",
+    "vocab_size": 125696,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Databricks",
+    "model": "DBRX",
+    "vocab_size": 100277,
+    "encoder": "Backtracking",
+    "pretokenizer": "Cl100k",
+    "normalizer": "None",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Moonshot AI",
+    "model": "Kimi K2",
+    "vocab_size": 163840,
+    "encoder": "Backtracking",
+    "pretokenizer": null,
+    "normalizer": null,
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Shanghai AI Lab",
+    "model": "InternLM",
+    "vocab_size": 103168,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Shanghai AI Lab",
+    "model": "InternLM 2",
+    "vocab_size": 92544,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Stability AI",
+    "model": "StableLM",
+    "vocab_size": 50254,
+    "encoder": "Backtracking",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Stability AI",
+    "model": "StableLM 2",
+    "vocab_size": 100289,
+    "encoder": "Backtracking",
+    "pretokenizer": "Gpt2",
+    "normalizer": "None",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Zhipu AI",
+    "model": "ChatGLM",
+    "vocab_size": 65024,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": false,
+    "performance": null
+  },
+  {
+    "provider": "Zhipu AI",
+    "model": "ChatGLM 2/3",
+    "vocab_size": 64794,
+    "encoder": "SentencePiece",
+    "pretokenizer": "None",
+    "normalizer": "Metaspace",
+    "supported": false,
+    "performance": null
+  }
+]
