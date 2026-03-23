@@ -8,6 +8,12 @@
 [![PyPI](https://img.shields.io/pypi/v/tokie)](https://pypi.org/project/tokie/)
 [![License](https://img.shields.io/crates/l/tokie)](LICENSE-MIT)
 
+[Install](#install) •
+[Quick Start](#quick-start) •
+[Examples](#examples) •
+[Benchmarks](#benchmarks) •
+[Why tokie?](#why-tokie)
+
 </div>
 
 **tokie** is a Rust tokenizer library (with Python bindings) that can load any tokenizer on HuggingFace and tokenize up to 80x faster. It supports every major algorithm — BPE, WordPiece, SentencePiece, and Unigram — and is 100% token-accurate, every time.
