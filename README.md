@@ -65,14 +65,3 @@ let tokenizer = Tokenizer::from_pretrained("bert-base-uncased")?;
 let tokens = tokenizer.encode("Hello, world!", true);
 let text = tokenizer.decode(&tokens).unwrap();
 ```
-
-## Supported Models
-
-tokie works with any HuggingFace tokenizer. Some highlights:
-
-| Encoder | Models |
-|---------|--------|
-| **BPE (Backtracking)** | GPT-2, cl100k, o200k, Llama 3/4, Mistral, Phi, Qwen |
-| **BPE (SentencePiece)** | T5, XLM-RoBERTa, CodeLlama, Gemma |
-| **WordPiece** | BERT, MiniLM, BGE, GTE, E5, ModernBERT |
-| **Unigram** | ALBERT, XLNet, Marian |
