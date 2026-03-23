@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="tokie.png" alt="tokie">
+  <img src="assets/tokie.png" alt="tokie">
 </p>
 
 <p align="center">
