@@ -102,31 +102,6 @@ pair.attention_mask  # [1, 1, 1, ..., 1]
 pair.type_ids        # [0, 0, 0, ..., 1, 1, 1]
 ```
 
-## How It's Fast
-
-1. **Custom parsers instead of regex** — the pretokenizer is the bottleneck in most tokenizers. We replaced regex with hand-written parsers that understand the exact patterns needed for GPT-2, cl100k, and o200k tokenization.
-
-2. **Aho-Corasick automata for BPE** — instead of iteratively merging pairs, we use a pre-built automaton for O(n) suffix matching with backtracking, based on the approach from [GitHub's rust-gems](https://github.com/github/rust-gems).
-
-3. **Parallel tokenization** — text is chunked at safe boundaries and tokenized across all cores, then merged. The chunking itself uses a fast algorithm that respects token boundaries.
-
-4. **Pre-built binary format** — the `.tkz` format stores the automaton directly, so loading is just a memory map — no JSON parsing, no regex compilation.
-
-## Architecture
-
-```
-Tokenizer
-├── Normalizer        (BERT uncased, NFC, SentencePiece NFKC, Metaspace)
-├── Pretokenizer      (GPT-2, cl100k, o200k, BERT — custom parsers, no regex)
-├── Encoder           (Backtracking BPE, Simple BPE, SentencePiece BPE, WordPiece, Unigram)
-├── PostProcessor     (BERT [CLS]/[SEP], Llama <bos>, Template)
-└── Decoder           (Token ID → bytes, cache-efficient flat layout)
-```
-
 ## License
 
-MIT OR Apache-2.0
-
-## Built by
-
-[Chonkie, Inc.](https://github.com/chonkie-inc) — the team behind [Chonkie](https://github.com/chonkie-inc/chonkie), the chunking library.
+MIT OR Apache-2.0 — built by [Chonkie, Inc.](https://github.com/chonkie-inc)
