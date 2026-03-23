@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "tokie"
-version = "0.0.2"
+version = "0.0.3"
 description = "Blazingly fast tokenizer — 50x faster, 10x smaller, 100% accurate"
 requires-python = ">=3.9"
 license = { text = "MIT OR Apache-2.0" }
