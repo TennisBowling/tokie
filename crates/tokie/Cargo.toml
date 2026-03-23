@@ -73,3 +73,7 @@ required-features = ["hf"]
 [[example]]
 name = "test_postprocessor"
 required-features = ["hf"]
+
+[[example]]
+name = "convert_and_verify"
+required-features = ["hf"]
