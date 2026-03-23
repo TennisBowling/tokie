@@ -76,17 +76,3 @@ tokie works with any HuggingFace tokenizer. Some highlights:
 | **BPE (SentencePiece)** | T5, XLM-RoBERTa, CodeLlama, Gemma |
 | **WordPiece** | BERT, MiniLM, BGE, GTE, E5, ModernBERT |
 | **Unigram** | ALBERT, XLNet, Marian |
-
-## The `.tkz` Format
-
-tokie's binary format pre-builds the Aho-Corasick automaton and stores it directly — no parsing, no regex compilation on load:
-
-```python
-# Save
-tokenizer.save("model.tkz")
-
-# Load (~5ms, 10x smaller than tokenizer.json)
-tokenizer = tokie.Tokenizer.from_file("model.tkz")
-```
-
-`from_pretrained()` automatically tries `.tkz` first, falling back to `tokenizer.json`.
