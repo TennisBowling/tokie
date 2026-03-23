@@ -1,7 +1,7 @@
-<p align="center">
-  <img src="assets/tokie.png" alt="tokie">
-</p>
+<div align="center">
 
-<p align="center">
-  <i>A fast, correct BPE tokenizer for Rust</i>
-</p>
+![tokie](assets/tokie.png)
+
+*A fast, correct tokenizer for Rust and Python*
+
+</div>
