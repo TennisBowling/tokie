@@ -25,6 +25,7 @@ use std::path::PathBuf;
 use hf_hub::Repo;
 
 use crate::hf::JsonLoadError;
+use crate::serde::SerdeError;
 use crate::Tokenizer;
 
 /// Error type for `from_pretrained` operations.
@@ -36,6 +37,8 @@ pub enum HubError {
     Download(hf_hub::api::sync::ApiError),
     /// Failed to load the tokenizer from JSON.
     Load(JsonLoadError),
+    /// Failed to load the tokenizer from .tkz binary format.
+    LoadBinary(SerdeError),
     /// The tokenizer.json file was not found in the repository.
     NotFound(String),
 }
@@ -46,8 +49,9 @@ impl std::fmt::Display for HubError {
             HubError::ApiInit(e) => write!(f, "failed to initialize HuggingFace Hub API: {}", e),
             HubError::Download(e) => write!(f, "failed to download tokenizer: {}", e),
             HubError::Load(e) => write!(f, "failed to load tokenizer: {}", e),
+            HubError::LoadBinary(e) => write!(f, "failed to load .tkz tokenizer: {}", e),
             HubError::NotFound(repo) => {
-                write!(f, "tokenizer.json not found in repository '{}'", repo)
+                write!(f, "tokenizer not found in repository '{}'", repo)
             }
         }
     }
@@ -59,6 +63,7 @@ impl std::error::Error for HubError {
             HubError::ApiInit(e) => Some(e),
             HubError::Download(e) => Some(e),
             HubError::Load(e) => Some(e),
+            HubError::LoadBinary(e) => Some(e),
             HubError::NotFound(_) => None,
         }
     }
@@ -104,8 +109,9 @@ impl FromPretrainedOptions {
 impl Tokenizer {
     /// Load a tokenizer from HuggingFace Hub.
     ///
-    /// This downloads the `tokenizer.json` file from the specified repository
-    /// and loads it. Files are cached locally for subsequent loads.
+    /// This first tries to download a `tokenizer.tkz` file (tokie's compact binary
+    /// format) for faster loading. If not found, falls back to `tokenizer.json`.
+    /// Files are cached locally for subsequent loads.
     ///
     /// # Arguments
     /// * `repo_id` - Repository ID (e.g., "gpt2", "meta-llama/Llama-3.2-8B")
@@ -166,10 +172,13 @@ impl Tokenizer {
 
         let repo_api = api.repo(repo);
 
-        // Download tokenizer.json
-        let tokenizer_path = repo_api.get("tokenizer.json").map_err(HubError::Download)?;
+        // Try tokenizer.tkz first (faster to load, smaller to download)
+        if let Ok(tkz_path) = repo_api.get("tokenizer.tkz") {
+            return Self::from_file(tkz_path).map_err(HubError::LoadBinary);
+        }
 
-        // Load and return
+        // Fall back to tokenizer.json
+        let tokenizer_path = repo_api.get("tokenizer.json").map_err(HubError::Download)?;
         Self::from_json(tokenizer_path).map_err(HubError::Load)
     }
 }

@@ -1,9 +1,10 @@
 [package]
 name = "tokie"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
-description = "Fast BPE tokenizer using Aho-Corasick automata"
-license = "AGPL-3.0"
+description = "Blazingly fast tokenizer - 50x faster tokenization, 10x smaller model files, 100% accurate drop-in replacement for HuggingFace"
+license = "AGPL-3.0-only"
+repository = "https://github.com/chonkie-inc/tokie"
 
 [features]
 default = []
@@ -11,7 +12,7 @@ hf = ["hf-hub"]
 
 [dependencies]
 crc32fast = "1.4"
-daggrs = { path = "../daggrs" }
+daggrs = "0.1.1"
 fnv = "1.0"
 boomphf = "0.6"
 foldhash = "0.1"
@@ -61,4 +62,17 @@ name = "tiktoken_compat"
 required-features = ["hf"]
 
 [[example]]
+name = "test_llama4"
+required-features = ["hf"]
+
+[[example]]
+name = "test_enwik8"
+required-features = ["hf"]
+
+[[example]]
 name = "verify_embedding_models"
+required-features = ["hf"]
+
+[[example]]
+name = "test_postprocessor"
+required-features = ["hf"]

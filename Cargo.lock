@@ -369,7 +369,9 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 
 [[package]]
 name = "daggrs"
-version = "0.1.0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d1092288af9ecfd5378565a17df11a13dbe172d4a71abe9b55a9689f1336b8e"
 
 [[package]]
 name = "darling"
@@ -2116,7 +2118,7 @@ dependencies = [
 
 [[package]]
 name = "tokie"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "boomphf",
  "crc32fast",
