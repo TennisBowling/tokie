@@ -15,6 +15,17 @@ use crate::postprocessor::PostProcessor;
 use crate::pretok::{Pretok, PretokType};
 use crate::types::TokenId;
 
+/// Result of encoding a pair of texts (e.g. for cross-encoder models).
+#[derive(Debug, Clone)]
+pub struct EncodingPair {
+    /// Token IDs for the combined pair.
+    pub ids: Vec<TokenId>,
+    /// Attention mask (1 for real tokens, used for padding in batches).
+    pub attention_mask: Vec<u8>,
+    /// Token type IDs (0 for first sequence, 1 for second sequence).
+    pub type_ids: Vec<u8>,
+}
+
 /// High-level tokenizer combining pre-tokenization, BPE encoding, and decoding.
 ///
 /// This is the main interface for tokenizing text. It handles:
@@ -177,6 +188,37 @@ impl Tokenizer {
         } else {
             tokens
         }
+    }
+
+    /// Encode a pair of texts with special tokens and return IDs, attention mask, and type IDs.
+    ///
+    /// This is the equivalent of HuggingFace's `tokenizer.encode((text_a, text_b), add_special_tokens)`.
+    /// Used for cross-encoder models that take sentence pairs as input.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let pair = tokenizer.encode_pair("What is Berlin?", "Berlin is the capital of Germany.", true);
+    /// // pair.ids:            [CLS] query tokens [SEP] doc tokens [SEP]
+    /// // pair.type_ids:       0     0...         0     1...       1
+    /// // pair.attention_mask: 1     1...         1     1...       1
+    /// ```
+    pub fn encode_pair(&self, text_a: &str, text_b: &str, add_special_tokens: bool) -> EncodingPair {
+        let tokens_a = self.encode(text_a, false);
+        let tokens_b = self.encode(text_b, false);
+
+        let (ids, type_ids) = if add_special_tokens {
+            self.post_processor.process_pair(&tokens_a, &tokens_b)
+        } else {
+            let mut ids = Vec::with_capacity(tokens_a.len() + tokens_b.len());
+            ids.extend_from_slice(&tokens_a);
+            ids.extend_from_slice(&tokens_b);
+            let mut type_ids = vec![0u8; tokens_a.len()];
+            type_ids.extend(vec![1u8; tokens_b.len()]);
+            (ids, type_ids)
+        };
+
+        let attention_mask = vec![1u8; ids.len()];
+        EncodingPair { ids, attention_mask, type_ids }
     }
 
     /// Sequential encoding: pretokenize then BPE encode each piece.

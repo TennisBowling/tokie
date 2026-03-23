@@ -70,7 +70,7 @@ pub use normalizer::{bert_uncased_normalize, clean_text, fnr, metaspace_normaliz
 pub use postprocessor::PostProcessor;
 pub use pretok::{Pretok, PretokIter, PretokType, RegexPretok};
 pub use serde::SerdeError;
-pub use tokenizer::{TokenCount, Tokenizer, TokenizeIter};
+pub use tokenizer::{EncodingPair, TokenCount, Tokenizer, TokenizeIter};
 pub use types::TokenId;
 
 // Backward compatibility aliases
