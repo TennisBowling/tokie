@@ -39,6 +39,8 @@ The result is **tokie** — one tokenizer to rule them all.
 ### Python
 
 ```bash
+uv pip install tokie
+# or
 pip install tokie
 ```
 
