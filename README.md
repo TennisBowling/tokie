@@ -10,7 +10,7 @@
 
 </div>
 
-**tokie** is a Rust tokenizer library (with Python bindings) that can load any tokenizer on HuggingFace and tokenize up to 80x faster. It supports every major algorithm — BPE, WordPiece, SentencePiece, and Unigram — and gets its speed by replacing regex with hand-written parsers and parallelizing encoding across all cores. 100% token-accurate, every time.
+**tokie** is a Rust tokenizer library (with Python bindings) that can load any tokenizer on HuggingFace and tokenize up to 80x faster. It supports every major algorithm — BPE, WordPiece, SentencePiece, and Unigram — and is 100% token-accurate, every time.
 
 ![benchmark](assets/benchmark.png)
 
