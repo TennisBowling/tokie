@@ -81,3 +81,19 @@ required-features = ["hf"]
 [[example]]
 name = "regenerate_all_v11"
 required-features = ["hf"]
+
+[[example]]
+name = "basic_usage"
+required-features = ["hf"]
+
+[[example]]
+name = "padding_truncation"
+required-features = ["hf"]
+
+[[example]]
+name = "batch_processing"
+required-features = ["hf"]
+
+[[example]]
+name = "cross_encoder"
+required-features = ["hf"]

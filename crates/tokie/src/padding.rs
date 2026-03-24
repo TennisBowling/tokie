@@ -121,6 +121,17 @@ pub struct TruncationParams {
     pub stride: usize,
 }
 
+impl Default for TruncationParams {
+    fn default() -> Self {
+        Self {
+            max_length: 512,
+            strategy: TruncationStrategy::LongestFirst,
+            direction: TruncationDirection::Right,
+            stride: 0,
+        }
+    }
+}
+
 // --- Free functions ---
 
 /// Truncate a token sequence in place.
