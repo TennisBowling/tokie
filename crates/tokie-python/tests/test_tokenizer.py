@@ -264,6 +264,57 @@ def test_num_special_tokens_to_add():
     assert t.num_special_tokens_to_add(True) == 3  # [CLS] + [SEP] + [SEP]
 
 
+def test_tokens_property():
+    t = tokie.Tokenizer.from_pretrained("bert-base-uncased")
+    enc = t.encode("Hello world")
+    assert isinstance(enc.tokens, list)
+    assert len(enc.tokens) == len(enc.ids)
+    # BERT: [CLS] hello world [SEP]
+    assert enc.tokens[0] == "[CLS]"
+    assert enc.tokens[-1] == "[SEP]"
+    assert "hello" in enc.tokens
+    assert "world" in enc.tokens
+
+
+def test_special_tokens_mask():
+    t = tokie.Tokenizer.from_pretrained("bert-base-uncased")
+    enc = t.encode("Hello world")
+    assert isinstance(enc.special_tokens_mask, list)
+    assert len(enc.special_tokens_mask) == len(enc.ids)
+    # First ([CLS]) and last ([SEP]) should be special
+    assert enc.special_tokens_mask[0] == 1
+    assert enc.special_tokens_mask[-1] == 1
+    # Content tokens should not be special
+    for i in range(1, len(enc.special_tokens_mask) - 1):
+        assert enc.special_tokens_mask[i] == 0
+
+
+def test_tokens_without_special():
+    t = tokie.Tokenizer.from_pretrained("bert-base-uncased")
+    enc = t.encode("hello", add_special_tokens=False)
+    assert len(enc.tokens) == len(enc.ids)
+    assert all(m == 0 for m in enc.special_tokens_mask)
+
+
+def test_tokens_encode_pair():
+    t = tokie.Tokenizer.from_pretrained("bert-base-uncased")
+    enc = t.encode_pair("Hello", "World")
+    assert len(enc.tokens) == len(enc.ids)
+    assert len(enc.special_tokens_mask) == len(enc.ids)
+    # [CLS] and [SEP] tokens should be marked special
+    assert enc.special_tokens_mask[0] == 1  # [CLS]
+    assert sum(enc.special_tokens_mask) >= 2  # at least CLS + SEP
+
+
+def test_tokens_encode_batch():
+    t = tokie.Tokenizer.from_pretrained("bert-base-uncased")
+    batch = t.encode_batch(["Hello", "World"])
+    for enc in batch:
+        assert len(enc.tokens) == len(enc.ids)
+        assert len(enc.special_tokens_mask) == len(enc.ids)
+        assert enc.tokens[0] == "[CLS]"
+
+
 def test_unigram_t5():
     t = tokie.Tokenizer.from_pretrained("google-t5/t5-small")
     enc = t.encode("Hello world", add_special_tokens=False)

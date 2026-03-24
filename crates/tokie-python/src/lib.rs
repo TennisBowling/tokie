@@ -21,6 +21,10 @@ struct PyEncoding {
     attention_mask_inner: Vec<u8>,
     type_ids_inner: Vec<u8>,
     offsets_inner: Vec<(usize, usize)>,
+    #[pyo3(get)]
+    tokens: Vec<String>,
+    #[pyo3(get)]
+    special_tokens_mask: Vec<u32>,
 }
 
 #[pymethods]
@@ -54,15 +58,28 @@ impl PyEncoding {
     }
 }
 
-impl From<tokie_core::Encoding> for PyEncoding {
-    fn from(enc: tokie_core::Encoding) -> Self {
+impl PyEncoding {
+    /// Create from a core Encoding, populating tokens and special_tokens_mask
+    /// using the tokenizer.
+    fn from_encoding(enc: tokie_core::Encoding, tokenizer: &tokie_core::Tokenizer) -> Self {
+        let tokens: Vec<String> = enc.ids.iter().map(|&id| {
+            tokenizer.id_to_token(id)
+                .map(|s| s.into_owned())
+                .unwrap_or_default()
+        }).collect();
+        let special_tokens_mask: Vec<u32> = enc.ids.iter().map(|&id| {
+            if tokenizer.post_processor().is_special_token(id) { 1 } else { 0 }
+        }).collect();
         Self {
             ids: enc.ids,
             attention_mask_inner: enc.attention_mask,
             type_ids_inner: enc.type_ids,
             offsets_inner: enc.offsets,
+            tokens,
+            special_tokens_mask,
         }
     }
+
 }
 
 /// Fast, correct tokenizer. Supports BPE, WordPiece, and Unigram.
@@ -113,7 +130,8 @@ impl PyTokenizer {
     fn encode(&self, py: Python<'_>, text: &str, add_special_tokens: bool) -> PyEncoding {
         let text = text.to_string();
         let inner = self.read();
-        py.allow_threads(|| inner.encode(&text, add_special_tokens)).into()
+        let enc = py.allow_threads(|| inner.encode(&text, add_special_tokens));
+        PyEncoding::from_encoding(enc, &*inner)
     }
 
     /// Encode a pair of texts (e.g. for cross-encoder models).
@@ -128,7 +146,8 @@ impl PyTokenizer {
         let a = text_a.to_string();
         let b = text_b.to_string();
         let inner = self.read();
-        py.allow_threads(|| inner.encode_pair(&a, &b, add_special_tokens)).into()
+        let enc = py.allow_threads(|| inner.encode_pair(&a, &b, add_special_tokens));
+        PyEncoding::from_encoding(enc, &*inner)
     }
 
     /// Encode text into an Encoding with byte offsets into the (normalized) input.
@@ -136,7 +155,8 @@ impl PyTokenizer {
     fn encode_with_offsets(&self, py: Python<'_>, text: &str, add_special_tokens: bool) -> PyEncoding {
         let text = text.to_string();
         let inner = self.read();
-        py.allow_threads(|| inner.encode_with_offsets(&text, add_special_tokens)).into()
+        let enc = py.allow_threads(|| inner.encode_with_offsets(&text, add_special_tokens));
+        PyEncoding::from_encoding(enc, &*inner)
     }
 
     /// Encode raw bytes into token IDs.
@@ -182,13 +202,13 @@ impl PyTokenizer {
     #[pyo3(signature = (texts, add_special_tokens=true))]
     fn encode_batch(&self, py: Python<'_>, texts: Vec<String>, add_special_tokens: bool) -> Vec<PyEncoding> {
         let inner = self.read();
-        py.allow_threads(|| {
+        let encodings = py.allow_threads(|| {
             let text_refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
             inner.encode_batch(&text_refs, add_special_tokens)
-                .into_iter()
-                .map(PyEncoding::from)
-                .collect()
-        })
+        });
+        encodings.into_iter()
+            .map(|enc| PyEncoding::from_encoding(enc, &*inner))
+            .collect()
     }
 
     /// Count the number of tokens in the text.

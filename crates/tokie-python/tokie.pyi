@@ -4,6 +4,8 @@ class Encoding:
     """Result of encoding text, with token IDs, attention mask, and type IDs."""
 
     ids: list[int]
+    tokens: list[str]
+    special_tokens_mask: list[int]
     attention_mask: list[int]
     type_ids: list[int]
     offsets: list[tuple[int, int]]
