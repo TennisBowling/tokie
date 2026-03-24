@@ -14,7 +14,7 @@ use crate::types::TokenId;
 ///
 /// Uses a flat buffer layout for optimal cache performance:
 /// - `data`: All token bytes concatenated in a single allocation
-/// - `offsets`: Start offset of each token (offsets[i+1] - offsets[i] = token length)
+/// - `offsets`: Start offset of each token (offsets\[i+1\] - offsets\[i\] = token length)
 ///
 /// This eliminates pointer chasing and improves decode throughput.
 ///

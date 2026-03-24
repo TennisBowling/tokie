@@ -183,7 +183,7 @@ impl Pretok {
     /// Used by: Voyage 3, Voyage 3 Large, Voyage Code 3
     ///
     /// Similar to CL100K but with single-digit number matching:
-    /// - Tab/punctuation can prefix letters: `.hello` → [`.hello`]
+    /// - Tab/punctuation can prefix letters: `.hello` → \[`.hello`\]
     /// - Numbers matched one digit at a time: `12345` → [`1`, `2`, `3`, `4`, `5`]
     /// - Case-insensitive contractions
     pub const VOYAGE: Self = Self {

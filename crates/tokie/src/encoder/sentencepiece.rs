@@ -477,7 +477,7 @@ impl SentencePieceBPE {
     ///
     /// Used during deserialization to rebuild the encoder from saved data.
     /// All lookups (byte_lut, token_cache, token_lengths) are pre-built from decoder
-    /// data, avoiding intermediate Vec<Vec<u8>> allocation.
+    /// data, avoiding intermediate `Vec<Vec<u8>>` allocation.
     pub fn from_parts(
         merges: &[(TokenId, TokenId, TokenId)], // (left, right, merged_id)
         byte_lut: [TokenId; 256],

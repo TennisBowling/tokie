@@ -7,7 +7,7 @@
 //! - [`WordPieceEncoder`] - WordPiece tokenization (for BERT-style)
 //! - [`SentencePieceBPE`] - BPE with merge rank checking (for SentencePiece-style)
 //!
-//! The [`Encoder`] enum wraps these implementations for use in [`Tokenizer`].
+//! The [`Encoder`] enum wraps these implementations for use in the Tokenizer.
 
 mod backtracking;
 mod sentencepiece;
@@ -63,7 +63,7 @@ impl EncoderType {
 
 /// Unified encoder interface wrapping different tokenization implementations.
 ///
-/// This enum allows the [`Tokenizer`] to use different encoding strategies
+/// This enum allows the Tokenizer to use different encoding strategies
 /// depending on the tokenizer type:
 ///
 /// - `Backtracking`: Fast O(n) for tiktoken-style tokenizers (GPT-2, cl100k, o200k)
