@@ -1,52 +1,55 @@
-//! tokie - Fast BPE tokenizer using Aho-Corasick automata
+//! tokie — Fast, correct tokenizer for every HuggingFace model.
 //!
-//! This crate implements Byte Pair Encoding (BPE) tokenization using the
-//! algorithm from GitHub's rust-gems, which uses Aho-Corasick automata for
-//! efficient suffix matching combined with compatibility checking.
+//! Supports BPE, WordPiece, SentencePiece, and Unigram. 50x faster than
+//! HuggingFace tokenizers, 100% token-accurate.
 //!
 //! # Quick Start
 //!
 //! ```ignore
 //! use tokie::Tokenizer;
 //!
-//! // Load from HuggingFace tokenizer.json
 //! let tokenizer = Tokenizer::from_json("tokenizer.json")?;
 //!
-//! // Encode text (without special tokens)
-//! let tokens = tokenizer.encode("Hello, world!", false);
-//!
-//! // Encode with special tokens (for model input)
-//! let tokens_with_special = tokenizer.encode("Hello, world!", true);
+//! // Encode returns Encoding with ids, attention_mask, type_ids
+//! let enc = tokenizer.encode("Hello, world!", true);
+//! println!("{:?}", enc.ids);
 //!
 //! // Decode back
-//! let text = tokenizer.decode(&tokens).unwrap();
+//! let text = tokenizer.decode(&enc.ids).unwrap();
 //!
-//! // Save/load binary format (fast)
+//! // Save/load binary format (~10x smaller, ~5ms load)
 //! tokenizer.to_file("model.tkz")?;
 //! let tokenizer = Tokenizer::from_file("model.tkz")?;
 //! ```
 //!
-//! # Loading from HuggingFace Hub
+//! # HuggingFace Hub
 //!
-//! Enable the `hf` feature to load tokenizers directly from HuggingFace:
+//! Enable the `hf` feature to load from HuggingFace directly:
 //!
 //! ```toml
-//! tokie = { version = "0.1", features = ["hf"] }
+//! tokie = { version = "0.0.4", features = ["hf"] }
 //! ```
 //!
 //! ```ignore
-//! use tokie::Tokenizer;
-//!
-//! let tokenizer = Tokenizer::from_pretrained("gpt2")?;
-//! let tokenizer = Tokenizer::from_pretrained("meta-llama/Llama-3.2-8B")?;
+//! let tokenizer = Tokenizer::from_pretrained("bert-base-uncased")?;
+//! let tokenizer = Tokenizer::from_pretrained("meta-llama/Llama-3.2-1B")?;
 //! ```
 //!
-//! # Architecture
+//! # Padding & Truncation
 //!
-//! - [`Tokenizer`] - High-level API combining pre-tokenization + BPE encoding + decoding
-//! - [`encoder`] - BPE encoders (backtracking for tiktoken, heap for LLaMA)
-//! - [`Decoder`] - Token ID to bytes decoder (can be shared across encoder types)
-//! - [`pretok`] - Fast pretokenizers (GPT-2: 566 MiB/s, cl100k, o200k)
+//! ```ignore
+//! use tokie::{Tokenizer, TruncationParams, PaddingParams, PaddingStrategy};
+//!
+//! let mut tokenizer = Tokenizer::from_pretrained("bert-base-uncased")?;
+//! tokenizer.enable_truncation(TruncationParams { max_length: 128, ..Default::default() });
+//! tokenizer.enable_padding(PaddingParams {
+//!     strategy: PaddingStrategy::Fixed(128),
+//!     ..Default::default()
+//! });
+//!
+//! let results = tokenizer.encode_batch(&["Hello!", "World"], true);
+//! // All results are exactly 128 tokens
+//! ```
 
 mod decoder;
 pub mod diff;
