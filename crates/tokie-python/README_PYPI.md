@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <b>50x faster tokenization, 10x smaller model files, 100% accurate</b>
+  <b>10-136x faster tokenization, 10x smaller model files, 100% accurate</b>
 </p>
 
 <p align="center">
@@ -28,19 +28,21 @@ import tokie
 # Load from HuggingFace Hub (tries .tkz first, falls back to tokenizer.json)
 tokenizer = tokie.Tokenizer.from_pretrained("bert-base-uncased")
 
-# Encode — returns Encoding with ids, attention_mask, type_ids
-encoding = tokenizer.encode("Hello, world!")
-print(encoding.ids)             # [101, 7592, 1010, 2088, 999, 102]
-print(encoding.attention_mask)  # [1, 1, 1, 1, 1, 1]
+# Encode — callable syntax or .encode()
+encoding = tokenizer("Hello, world!")
+print(encoding.ids)               # [101, 7592, 1010, 2088, 999, 102]
+print(encoding.tokens)            # ['[CLS]', 'hello', ',', 'world', '!', '[SEP]']
+print(encoding.attention_mask)    # [1, 1, 1, 1, 1, 1]
+print(encoding.special_tokens_mask)  # [1, 0, 0, 0, 0, 1]
 
 # Decode
-text = tokenizer.decode([101, 7592, 1010, 2088, 999, 102])
+text = tokenizer.decode(encoding.ids)  # "hello , world !"
 
 # Token count (fast, no Encoding overhead)
 count = tokenizer.count_tokens("Hello, world!")
 
-# Vocabulary size
-print(tokenizer.vocab_size)  # 30522
+# Batch encode (parallel across all cores)
+encodings = tokenizer.encode_batch(["Hello!", "World"], add_special_tokens=True)
 ```
 
 ## Padding & Truncation
@@ -62,16 +64,15 @@ for enc in batch:
 ## Pair Encoding (Cross-Encoders)
 
 ```python
-pair = tokenizer.encode_pair("How are you?", "I am fine.")
-print(pair.ids)             # [101, 2129, 2024, 2017, 1029, 102, 1045, 2572, 2986, 1012, 102]
-print(pair.attention_mask)  # [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-print(pair.type_ids)        # [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1]
+pair = tokenizer("How are you?", "I am fine.")  # or tokenizer.encode_pair(...)
+print(pair.ids)                # [101, 2129, 2024, 2017, 1029, 102, 1045, 2572, 2986, 1012, 102]
+print(pair.type_ids)           # [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1]
+print(pair.special_tokens_mask)  # [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 ```
 
 ## Byte Offsets
 
 ```python
-# Get byte offsets for each token in the (normalized) input
 enc = tokenizer.encode_with_offsets("Hello world")
 for token_id, (start, end) in zip(enc.ids, enc.offsets):
     print(f"  token {token_id}: bytes [{start}:{end}]")
@@ -89,6 +90,18 @@ tokenizer = tokie.Tokenizer.from_file("model.tkz")
 ## Supported Models
 
 Works with any HuggingFace tokenizer — GPT-2, BERT, Llama 3/4, Mistral, Phi, Qwen, T5, XLM-RoBERTa, and more.
+
+## Benchmarks
+
+| Model | Text Size | tokie | HF tokenizers | Speedup |
+|-------|-----------|-------|---------------|---------|
+| BERT | 900 KB | 1.69 ms | 229 ms | **136x** |
+| GPT-2 | 900 KB | 1.70 ms | 181 ms | **107x** |
+| Llama 3 | 900 KB | 2.04 ms | 190 ms | **93x** |
+| Qwen 3 | 45 KB | 0.15 ms | 8.18 ms | **54x** |
+| Gemma 3 | 45 KB | 1.01 ms | 9.62 ms | **10x** |
+
+100% token-accurate across all models.
 
 ## License
 
