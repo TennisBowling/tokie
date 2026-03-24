@@ -1,9 +1,10 @@
 [package]
 name = "tokie"
-version = "0.0.4"
+version = "0.0.5"
 edition = "2024"
 description = "Blazingly fast tokenizer - 50x faster tokenization, 10x smaller model files, 100% accurate drop-in replacement for HuggingFace"
 license = "MIT OR Apache-2.0"
+readme = "../../README.md"
 repository = "https://github.com/chonkie-inc/tokie"
 documentation = "https://docs.rs/tokie"
 keywords = ["tokenizer", "bpe", "wordpiece", "nlp", "transformers"]

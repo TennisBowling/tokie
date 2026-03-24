@@ -1563,7 +1563,7 @@ dependencies = [
 
 [[package]]
 name = "tokie"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "chunk",
  "crc32fast",
@@ -1583,7 +1583,7 @@ dependencies = [
 
 [[package]]
 name = "tokie-python"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "pyo3",
  "tokie",
