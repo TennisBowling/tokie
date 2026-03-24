@@ -331,6 +331,57 @@ impl PyTokenizer {
         Ok(())
     }
 
+    /// Get current padding configuration, or None if disabled.
+    #[getter]
+    fn padding(&self) -> Option<HashMap<String, PyObject>> {
+        Python::with_gil(|py| {
+            self.read().padding().map(|p| {
+                let mut d = HashMap::new();
+                match p.strategy {
+                    tokie_core::PaddingStrategy::Fixed(n) =>
+                        d.insert("length".to_string(), n.into_pyobject(py).unwrap().into_any().unbind()),
+                    tokie_core::PaddingStrategy::BatchLongest =>
+                        d.insert("length".to_string(), py.None()),
+                };
+                d.insert("pad_to_multiple_of".to_string(),
+                    p.pad_to_multiple_of.map(|n| n.into_pyobject(py).unwrap().into_any().unbind())
+                        .unwrap_or_else(|| py.None()));
+                d.insert("pad_id".to_string(), p.pad_id.into_pyobject(py).unwrap().into_any().unbind());
+                d.insert("pad_type_id".to_string(), p.pad_type_id.into_pyobject(py).unwrap().into_any().unbind());
+                let dir_str = match p.direction {
+                    tokie_core::PaddingDirection::Right => "right",
+                    tokie_core::PaddingDirection::Left => "left",
+                };
+                d.insert("direction".to_string(), dir_str.into_pyobject(py).unwrap().into_any().unbind());
+                d
+            })
+        })
+    }
+
+    /// Get current truncation configuration, or None if disabled.
+    #[getter]
+    fn truncation(&self) -> Option<HashMap<String, PyObject>> {
+        Python::with_gil(|py| {
+            self.read().truncation().map(|t| {
+                let mut d = HashMap::new();
+                d.insert("max_length".to_string(), t.max_length.into_pyobject(py).unwrap().into_any().unbind());
+                d.insert("stride".to_string(), t.stride.into_pyobject(py).unwrap().into_any().unbind());
+                let strat = match t.strategy {
+                    tokie_core::TruncationStrategy::LongestFirst => "longest_first",
+                    tokie_core::TruncationStrategy::OnlyFirst => "only_first",
+                    tokie_core::TruncationStrategy::OnlySecond => "only_second",
+                };
+                d.insert("strategy".to_string(), strat.into_pyobject(py).unwrap().into_any().unbind());
+                let dir_str = match t.direction {
+                    tokie_core::TruncationDirection::Right => "right",
+                    tokie_core::TruncationDirection::Left => "left",
+                };
+                d.insert("direction".to_string(), dir_str.into_pyobject(py).unwrap().into_any().unbind());
+                d
+            })
+        })
+    }
+
     /// Disable padding.
     fn no_padding(&self) {
         self.write().no_padding();

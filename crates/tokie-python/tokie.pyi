@@ -118,6 +118,14 @@ class Tokenizer:
     def pad_token_id(self) -> Optional[int]:
         """The pad token ID, if set."""
         ...
+    @property
+    def padding(self) -> Optional[dict[str, object]]:
+        """Get current padding configuration, or None if disabled."""
+        ...
+    @property
+    def truncation(self) -> Optional[dict[str, object]]:
+        """Get current truncation configuration, or None if disabled."""
+        ...
     def num_special_tokens_to_add(self, is_pair: bool = False) -> int:
         """Number of special tokens added for a single sequence or pair."""
         ...

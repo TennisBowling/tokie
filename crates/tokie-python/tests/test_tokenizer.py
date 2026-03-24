@@ -315,6 +315,24 @@ def test_tokens_encode_batch():
         assert enc.tokens[0] == "[CLS]"
 
 
+def test_padding_truncation_getters():
+    t = tokie.Tokenizer.from_pretrained("bert-base-uncased")
+    assert t.padding is None
+    assert t.truncation is None
+    t.enable_padding(length=16)
+    t.enable_truncation(max_length=8)
+    assert t.padding is not None
+    assert t.padding["length"] == 16
+    assert t.padding["direction"] == "right"
+    assert t.truncation is not None
+    assert t.truncation["max_length"] == 8
+    assert t.truncation["strategy"] == "longest_first"
+    t.no_padding()
+    t.no_truncation()
+    assert t.padding is None
+    assert t.truncation is None
+
+
 def test_call_single():
     t = tokie.Tokenizer.from_pretrained("bert-base-uncased")
     enc = t("Hello world")
