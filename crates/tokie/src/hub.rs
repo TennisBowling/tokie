@@ -177,15 +177,110 @@ impl Tokenizer {
             return Self::from_file(tkz_path).map_err(HubError::LoadBinary);
         }
 
+        // Try pre-built .tkz from tokiers/ org (covers 60+ popular models)
+        if let Some(tokiers_name) = tokiers_repo_name(repo_id) {
+            let tokiers_repo = Repo::model(format!("tokiers/{tokiers_name}"));
+            let tokiers_api = api.repo(tokiers_repo);
+            if let Ok(tkz_path) = tokiers_api.get("tokenizer.tkz") {
+                return Self::from_file(tkz_path).map_err(HubError::LoadBinary);
+            }
+        }
+
         // Fall back to tokenizer.json
         let tokenizer_path = repo_api.get("tokenizer.json").map_err(HubError::Download)?;
         Self::from_json(tokenizer_path).map_err(HubError::Load)
     }
 }
 
+/// Map a HuggingFace repo ID to its pre-built tokiers/ repo name.
+/// Returns None if no pre-built .tkz exists for this model.
+fn tokiers_repo_name(repo_id: &str) -> Option<&'static str> {
+    // Case-insensitive lookup
+    let key = repo_id.to_ascii_lowercase();
+    match key.as_str() {
+        // Embedding models
+        "alibaba-nlp/gte-qwen2-7b-instruct" => Some("gte-Qwen2-7B-instruct"),
+        "baai/bge-base-en-v1.5" => Some("bge-base-en-v1.5"),
+        "baai/bge-en-icl" => Some("bge-en-icl"),
+        "baai/bge-large-en-v1.5" => Some("bge-large-en-v1.5"),
+        "baai/bge-small-en-v1.5" => Some("bge-small-en-v1.5"),
+        "cohere/cohere-embed-english-v3.0" => Some("Cohere-embed-english-v3.0"),
+        "cohere/cohere-embed-english-light-v3.0" => Some("Cohere-embed-english-light-v3.0"),
+        "cohere/cohere-embed-multilingual-v3.0" => Some("Cohere-embed-multilingual-v3.0"),
+        "cohere/cohere-embed-multilingual-light-v3.0" => Some("Cohere-embed-multilingual-light-v3.0"),
+        "intfloat/e5-small-v2" => Some("e5-small-v2"),
+        "intfloat/e5-base-v2" => Some("e5-base-v2"),
+        "intfloat/e5-large-v2" => Some("e5-large-v2"),
+        "jinaai/jina-embeddings-v2-base-en" => Some("jina-embeddings-v2-base-en"),
+        "jinaai/jina-embeddings-v2-base-code" => Some("jina-embeddings-v2-base-code"),
+        "jinaai/jina-embeddings-v3" => Some("jina-embeddings-v3"),
+        "jinaai/jina-embeddings-v4" => Some("jina-embeddings-v4"),
+        "mixedbread-ai/mxbai-embed-large-v1" => Some("mxbai-embed-large-v1"),
+        "mixedbread-ai/mxbai-embed-2d-large-v1" => Some("mxbai-embed-2d-large-v1"),
+        "mixedbread-ai/mxbai-embed-xsmall-v1" => Some("mxbai-embed-xsmall-v1"),
+        "mixedbread-ai/deepset-mxbai-embed-de-large-v1" => Some("deepset-mxbai-embed-de-large-v1"),
+        "nomic-ai/nomic-embed-text-v1" => Some("nomic-embed-text-v1"),
+        "qwen/qwen3-embedding-0.6b" => Some("Qwen3-Embedding-0.6B"),
+        "qwen/qwen3-embedding-4b" => Some("Qwen3-Embedding-4B"),
+        "qwen/qwen3-embedding-8b" => Some("Qwen3-Embedding-8B"),
+        "sentence-transformers/all-minilm-l6-v2" => Some("all-MiniLM-L6-v2"),
+        "sentence-transformers/all-minilm-l12-v2" => Some("all-MiniLM-L12-v2"),
+        "sentence-transformers/all-mpnet-base-v2" => Some("all-mpnet-base-v2"),
+        "thenlper/gte-small" => Some("gte-small"),
+        "thenlper/gte-base" => Some("gte-base"),
+        "thenlper/gte-large" => Some("gte-large"),
+        "voyageai/voyage-3" => Some("voyage-3"),
+        "voyageai/voyage-3-lite" => Some("voyage-3-lite"),
+        "voyageai/voyage-3-large" => Some("voyage-3-large"),
+        "voyageai/voyage-3.5" => Some("voyage-3.5"),
+        "voyageai/voyage-3.5-lite" => Some("voyage-3.5-lite"),
+        "voyageai/voyage-code-2" => Some("voyage-code-2"),
+        "voyageai/voyage-code-3" => Some("voyage-code-3"),
+        "voyageai/voyage-finance-2" => Some("voyage-finance-2"),
+        "voyageai/voyage-law-2" => Some("voyage-law-2"),
+        "voyageai/voyage-multilingual-2" => Some("voyage-multilingual-2"),
+        "voyageai/voyage-multimodal-3" => Some("voyage-multimodal-3"),
+        // Cross-encoders
+        "cross-encoder/ms-marco-minilm-l-4-v2" => Some("ms-marco-MiniLM-L-4-v2"),
+        "cross-encoder/ms-marco-minilm-l-6-v2" => Some("ms-marco-MiniLM-L-6-v2"),
+        // Base models
+        "bert-base-uncased" => Some("bert-base-uncased"),
+        "facebookai/roberta-base" => Some("roberta-base"),
+        "answerdotai/modernbert-base" => Some("ModernBERT-base"),
+        "openai-community/gpt2" => Some("gpt2"),
+        "xenova/gpt-4" => Some("cl100k"),
+        "xenova/gpt-4o" => Some("o200k"),
+        "meta-llama/llama-3.2-1b" => Some("Llama-3.2-1B"),
+        "meta-llama/llama-4-scout-17b-16e" => Some("Llama-4-Scout-17B-16E"),
+        "codellama/codellama-7b-hf" => Some("CodeLlama-7b-hf"),
+        "mistralai/mistral-7b-v0.1" => Some("Mistral-7B-v0.1"),
+        "mistralai/mistral-nemo-base-2407" => Some("Mistral-Nemo-Base-2407"),
+        "mistralai/mixtral-8x7b-v0.1" => Some("Mixtral-8x7B-v0.1"),
+        "microsoft/phi-2" => Some("phi-2"),
+        "microsoft/phi-3-mini-4k-instruct" => Some("Phi-3-mini-4k-instruct"),
+        "qwen/qwen2-7b" => Some("Qwen2-7B"),
+        "google-t5/t5-base" => Some("t5-base"),
+        "facebookai/xlm-roberta-base" => Some("xlm-roberta-base"),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_tokiers_repo_name() {
+        // Case-insensitive matching
+        assert_eq!(tokiers_repo_name("BAAI/bge-base-en-v1.5"), Some("bge-base-en-v1.5"));
+        assert_eq!(tokiers_repo_name("baai/bge-base-en-v1.5"), Some("bge-base-en-v1.5"));
+        // Known models
+        assert_eq!(tokiers_repo_name("sentence-transformers/all-MiniLM-L6-v2"), Some("all-MiniLM-L6-v2"));
+        assert_eq!(tokiers_repo_name("openai-community/gpt2"), Some("gpt2"));
+        assert_eq!(tokiers_repo_name("meta-llama/Llama-3.2-1B"), Some("Llama-3.2-1B"));
+        // Unknown model
+        assert_eq!(tokiers_repo_name("some-random/model"), None);
+    }
 
     #[test]
     #[ignore] // Requires network access
