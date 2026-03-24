@@ -229,3 +229,30 @@ def test_decode_batch():
     assert len(results) == 2
     assert results[0] == "hello"
     assert results[1] == "world"
+
+
+def test_encode_with_offsets():
+    t = tokie.Tokenizer.from_pretrained("openai-community/gpt2")
+    enc = t.encode_with_offsets("Hello world", add_special_tokens=False)
+    assert isinstance(enc, tokie.Encoding)
+    assert len(enc.offsets) == len(enc.ids)
+    # Offsets should be contiguous
+    for i in range(1, len(enc.offsets)):
+        assert enc.offsets[i][0] == enc.offsets[i - 1][1]
+    # First offset starts at 0, last ends at text byte length
+    assert enc.offsets[0][0] == 0
+    assert enc.offsets[-1][1] == len("Hello world".encode("utf-8"))
+
+
+def test_encode_with_offsets_empty():
+    t = tokie.Tokenizer.from_pretrained("openai-community/gpt2")
+    enc = t.encode_with_offsets("", add_special_tokens=False)
+    assert enc.ids == []
+    assert enc.offsets == []
+
+
+def test_encode_with_offsets_has_attention_mask():
+    t = tokie.Tokenizer.from_pretrained("openai-community/gpt2")
+    enc = t.encode_with_offsets("test", add_special_tokens=False)
+    assert all(m == 1 for m in enc.attention_mask)
+    assert len(enc.attention_mask) == len(enc.ids)

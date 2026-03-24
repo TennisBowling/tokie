@@ -20,6 +20,7 @@ struct PyEncoding {
     ids: Vec<u32>,
     attention_mask_inner: Vec<u8>,
     type_ids_inner: Vec<u8>,
+    offsets_inner: Vec<(usize, usize)>,
 }
 
 #[pymethods]
@@ -32,6 +33,11 @@ impl PyEncoding {
     #[getter]
     fn type_ids(&self) -> Vec<u32> {
         self.type_ids_inner.iter().map(|&x| x as u32).collect()
+    }
+
+    #[getter]
+    fn offsets(&self) -> Vec<(usize, usize)> {
+        self.offsets_inner.clone()
     }
 
     fn __repr__(&self) -> String {
@@ -54,6 +60,7 @@ impl From<tokie_core::Encoding> for PyEncoding {
             ids: enc.ids,
             attention_mask_inner: enc.attention_mask,
             type_ids_inner: enc.type_ids,
+            offsets_inner: enc.offsets,
         }
     }
 }
@@ -122,6 +129,14 @@ impl PyTokenizer {
         let b = text_b.to_string();
         let inner = self.read();
         py.allow_threads(|| inner.encode_pair(&a, &b, add_special_tokens)).into()
+    }
+
+    /// Encode text into an Encoding with byte offsets into the (normalized) input.
+    #[pyo3(signature = (text, add_special_tokens=true))]
+    fn encode_with_offsets(&self, py: Python<'_>, text: &str, add_special_tokens: bool) -> PyEncoding {
+        let text = text.to_string();
+        let inner = self.read();
+        py.allow_threads(|| inner.encode_with_offsets(&text, add_special_tokens)).into()
     }
 
     /// Encode raw bytes into token IDs.

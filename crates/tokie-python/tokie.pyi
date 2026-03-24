@@ -6,6 +6,7 @@ class Encoding:
     ids: list[int]
     attention_mask: list[int]
     type_ids: list[int]
+    offsets: list[tuple[int, int]]
     def __len__(self) -> int: ...
     def __repr__(self) -> str: ...
 
@@ -36,6 +37,11 @@ class Tokenizer:
         self, text_a: str, text_b: str, add_special_tokens: bool = True
     ) -> Encoding:
         """Encode a pair of texts (e.g. for cross-encoder models)."""
+        ...
+    def encode_with_offsets(
+        self, text: str, add_special_tokens: bool = True
+    ) -> Encoding:
+        """Encode text into an Encoding with byte offsets into the (normalized) input."""
         ...
     def encode_bytes(self, data: bytes) -> list[int]:
         """Encode raw bytes into token IDs."""

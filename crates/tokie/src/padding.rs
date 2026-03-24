@@ -11,6 +11,9 @@ pub struct Encoding {
     pub attention_mask: Vec<u8>,
     /// Token type IDs: 0 for first sequence, 1 for second sequence.
     pub type_ids: Vec<u8>,
+    /// Byte offsets: (start, end) for each token in the original text.
+    /// Only populated when encoding with offsets. Empty otherwise.
+    pub offsets: Vec<(usize, usize)>,
 }
 
 impl Encoding {
@@ -21,6 +24,18 @@ impl Encoding {
             ids,
             attention_mask: vec![1u8; len],
             type_ids: vec![0u8; len],
+            offsets: Vec::new(),
+        }
+    }
+
+    /// Create an encoding from token IDs with byte offsets.
+    pub fn from_ids_with_offsets(ids: Vec<TokenId>, offsets: Vec<(usize, usize)>) -> Self {
+        let len = ids.len();
+        Self {
+            ids,
+            attention_mask: vec![1u8; len],
+            type_ids: vec![0u8; len],
+            offsets,
         }
     }
 
@@ -31,6 +46,7 @@ impl Encoding {
             ids,
             attention_mask: vec![1u8; len],
             type_ids,
+            offsets: Vec::new(),
         }
     }
 
@@ -215,6 +231,9 @@ pub fn pad_encoding(encoding: &mut Encoding, target_len: usize, params: &Padding
             encoding.ids.extend(std::iter::repeat_n(params.pad_id, pad_count));
             encoding.attention_mask.extend(std::iter::repeat_n(0u8, pad_count));
             encoding.type_ids.extend(std::iter::repeat_n(params.pad_type_id, pad_count));
+            if !encoding.offsets.is_empty() {
+                encoding.offsets.extend(std::iter::repeat_n((0, 0), pad_count));
+            }
         }
         PaddingDirection::Left => {
             let mut new_ids = vec![params.pad_id; pad_count];
@@ -228,6 +247,12 @@ pub fn pad_encoding(encoding: &mut Encoding, target_len: usize, params: &Padding
             let mut new_type_ids = vec![params.pad_type_id; pad_count];
             new_type_ids.append(&mut encoding.type_ids);
             encoding.type_ids = new_type_ids;
+
+            if !encoding.offsets.is_empty() {
+                let mut new_offsets = vec![(0, 0); pad_count];
+                new_offsets.append(&mut encoding.offsets);
+                encoding.offsets = new_offsets;
+            }
         }
     }
 }

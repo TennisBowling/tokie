@@ -221,6 +221,76 @@ impl Tokenizer {
         encoding
     }
 
+    /// Encode text with byte offsets for each token.
+    ///
+    /// Returns an [`Encoding`] with `offsets` populated — each entry is a `(start, end)`
+    /// byte range in the (normalized) input text corresponding to that token.
+    ///
+    /// Special tokens (CLS, SEP, BOS) get offset `(0, 0)`.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let enc = tokenizer.encode_with_offsets("Hello, world!", true);
+    /// for (id, (start, end)) in enc.ids.iter().zip(&enc.offsets) {
+    ///     println!("token {} -> bytes {}..{}", id, start, end);
+    /// }
+    /// ```
+    pub fn encode_with_offsets(&self, text: &str, add_special_tokens: bool) -> Encoding {
+        let (mut tokens, mut offsets) = self.encode_raw_with_offsets(text);
+
+        if let Some(ref trunc) = self.truncation {
+            let special = if add_special_tokens {
+                self.post_processor.num_special_tokens_single()
+            } else {
+                0
+            };
+            let max_content = trunc.max_length.saturating_sub(special);
+            if tokens.len() > max_content {
+                match trunc.direction {
+                    crate::padding::TruncationDirection::Right => {
+                        tokens.truncate(max_content);
+                        offsets.truncate(max_content);
+                    }
+                    crate::padding::TruncationDirection::Left => {
+                        let start = tokens.len() - max_content;
+                        tokens.drain(..start);
+                        offsets.drain(..start);
+                    }
+                }
+            }
+        }
+
+        let (ids, final_offsets) = if add_special_tokens {
+            let processed = self.post_processor.process(&tokens);
+            // Build offsets for the processed sequence (special tokens get (0,0))
+            let mut new_offsets = Vec::with_capacity(processed.len());
+            let mut content_idx = 0;
+            for &id in &processed {
+                if self.post_processor.is_special_token(id) {
+                    new_offsets.push((0, 0));
+                } else if content_idx < offsets.len() {
+                    new_offsets.push(offsets[content_idx]);
+                    content_idx += 1;
+                } else {
+                    new_offsets.push((0, 0));
+                }
+            }
+            (processed, new_offsets)
+        } else {
+            (tokens, offsets)
+        };
+
+        let mut encoding = Encoding::from_ids_with_offsets(ids, final_offsets);
+
+        if let Some(ref pad) = self.padding {
+            if let crate::padding::PaddingStrategy::Fixed(n) = pad.strategy {
+                pad_encoding(&mut encoding, n, pad);
+            }
+        }
+
+        encoding
+    }
+
     /// Encode a pair of texts (e.g. for cross-encoder models).
     ///
     /// # Example
@@ -264,6 +334,94 @@ impl Tokenizer {
             match &self.pretokenizer {
                 Some(pretok) => self.encode_sequential(normalized.as_ref(), pretok),
                 None => self.encoder.encode(normalized.as_ref().as_bytes()),
+            }
+        }
+    }
+
+    /// Core encoding path with byte offset tracking.
+    /// Returns (token_ids, offsets) where offsets are byte ranges in the normalized text.
+    fn encode_raw_with_offsets(&self, text: &str) -> (Vec<TokenId>, Vec<(usize, usize)>) {
+        let normalized = self.normalizer.normalize(text);
+        let normalized_ref = normalized.as_ref();
+
+        match &self.pretokenizer {
+            Some(pretok) => {
+                let base_ptr = normalized_ref.as_ptr() as usize;
+                // Collect pieces with their byte start positions
+                let pieces: Vec<(&str, usize)> = pretok.split(normalized_ref)
+                    .map(|piece| {
+                        let start = piece.as_ptr() as usize - base_ptr;
+                        (piece, start)
+                    })
+                    .collect();
+
+                let cpus = num_cpus();
+                if pieces.len() > cpus * 2 && normalized_ref.len() >= Self::PARALLEL_CHUNK_THRESHOLD {
+                    // Parallel path: distribute pieces across threads
+                    let chunk_size = (pieces.len() + cpus - 1) / cpus;
+                    let encoder = &self.encoder;
+                    let decoder = &self.decoder;
+
+                    let results: Vec<(Vec<TokenId>, Vec<(usize, usize)>)> = thread::scope(|s| {
+                        pieces.chunks(chunk_size)
+                            .map(|chunk| {
+                                s.spawn(move || {
+                                    let mut tokens = Vec::new();
+                                    let mut offsets = Vec::new();
+                                    for &(piece, piece_start) in chunk {
+                                        let toks = encoder.encode(piece.as_bytes());
+                                        let mut pos = piece_start;
+                                        for &token_id in &toks {
+                                            let len = decoder.token_len(token_id);
+                                            offsets.push((pos, pos + len));
+                                            pos += len;
+                                        }
+                                        tokens.extend(toks);
+                                    }
+                                    (tokens, offsets)
+                                })
+                            })
+                            .collect::<Vec<_>>()
+                            .into_iter()
+                            .map(|h| h.join().unwrap())
+                            .collect()
+                    });
+
+                    let total: usize = results.iter().map(|(t, _)| t.len()).sum();
+                    let mut all_tokens = Vec::with_capacity(total);
+                    let mut all_offsets = Vec::with_capacity(total);
+                    for (t, o) in results {
+                        all_tokens.extend(t);
+                        all_offsets.extend(o);
+                    }
+                    (all_tokens, all_offsets)
+                } else {
+                    // Sequential path
+                    let mut all_tokens = Vec::new();
+                    let mut all_offsets = Vec::new();
+                    for (piece, piece_start) in pieces {
+                        let tokens = self.encoder.encode(piece.as_bytes());
+                        let mut pos = piece_start;
+                        for &token_id in &tokens {
+                            let len = self.decoder.token_len(token_id);
+                            all_offsets.push((pos, pos + len));
+                            pos += len;
+                        }
+                        all_tokens.extend(tokens);
+                    }
+                    (all_tokens, all_offsets)
+                }
+            }
+            None => {
+                let tokens = self.encoder.encode(normalized_ref.as_bytes());
+                let mut pos = 0;
+                let mut all_offsets = Vec::with_capacity(tokens.len());
+                for &token_id in &tokens {
+                    let len = self.decoder.token_len(token_id);
+                    all_offsets.push((pos, pos + len));
+                    pos += len;
+                }
+                (tokens, all_offsets)
             }
         }
     }
@@ -842,5 +1000,86 @@ mod tests {
 
         tokenizer.set_pad_token_id(0);
         assert_eq!(tokenizer.pad_token_id(), Some(0));
+    }
+
+    // --- Offset tests ---
+
+    #[test]
+    fn test_encode_with_offsets_basic() {
+        let tokenizer = make_tokenizer();
+        let enc = tokenizer.encode_with_offsets("abc", false);
+        // "abc" with merges a+b -> ab: tokens are [ab, c]
+        assert_eq!(enc.ids.len(), 2);
+        assert_eq!(enc.offsets.len(), 2);
+        // "ab" covers bytes 0..2, "c" covers bytes 2..3
+        assert_eq!(enc.offsets[0], (0, 2));
+        assert_eq!(enc.offsets[1], (2, 3));
+    }
+
+    #[test]
+    fn test_encode_with_offsets_single_byte() {
+        let tokenizer = make_tokenizer();
+        let enc = tokenizer.encode_with_offsets("x", false);
+        assert_eq!(enc.ids.len(), 1);
+        assert_eq!(enc.offsets, vec![(0, 1)]);
+    }
+
+    #[test]
+    fn test_encode_with_offsets_contiguous() {
+        // Verify offsets are contiguous (end of one = start of next)
+        let tokenizer = make_pretok_tokenizer();
+        let text = "Hello world";
+        let enc = tokenizer.encode_with_offsets(text, false);
+        assert_eq!(enc.ids.len(), enc.offsets.len());
+        // Each offset should be valid byte range
+        for &(start, end) in &enc.offsets {
+            assert!(start <= end);
+            assert!(end <= text.len());
+        }
+    }
+
+    #[test]
+    fn test_encode_with_offsets_roundtrip() {
+        // Verify reconstructing text from offsets gives the original
+        let tokenizer = make_tokenizer();
+        let text = "abcde";
+        let enc = tokenizer.encode_with_offsets(text, false);
+        let mut reconstructed = String::new();
+        for &(start, end) in &enc.offsets {
+            reconstructed.push_str(&text[start..end]);
+        }
+        assert_eq!(reconstructed, text);
+    }
+
+    #[test]
+    fn test_encode_with_offsets_special_tokens() {
+        let tokenizer = make_bert_tokenizer();
+        let enc = tokenizer.encode_with_offsets("ab", true);
+        // Should have [CLS] ab [SEP]
+        assert_eq!(enc.ids[0], 101); // CLS
+        assert_eq!(*enc.ids.last().unwrap(), 102); // SEP
+        // Special tokens get (0, 0) offsets
+        assert_eq!(enc.offsets[0], (0, 0));
+        assert_eq!(*enc.offsets.last().unwrap(), (0, 0));
+    }
+
+    #[test]
+    fn test_encode_with_offsets_empty() {
+        let tokenizer = make_tokenizer();
+        let enc = tokenizer.encode_with_offsets("", false);
+        assert!(enc.ids.is_empty());
+        assert!(enc.offsets.is_empty());
+    }
+
+    #[test]
+    fn test_encode_with_offsets_truncation() {
+        let mut tokenizer = make_tokenizer();
+        tokenizer.enable_truncation(TruncationParams {
+            max_length: 2,
+            ..Default::default()
+        });
+        let enc = tokenizer.encode_with_offsets("abcde", false);
+        assert!(enc.ids.len() <= 2);
+        assert_eq!(enc.ids.len(), enc.offsets.len());
     }
 }

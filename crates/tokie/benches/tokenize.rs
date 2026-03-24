@@ -39,6 +39,20 @@ fn bench_encode(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_encode_with_offsets(c: &mut Criterion) {
+    let tokenizer = load_tokenizer();
+    let text = load_text();
+
+    let mut group = c.benchmark_group("encode_with_offsets");
+    group.throughput(Throughput::Bytes(text.len() as u64));
+
+    group.bench_function("war_and_peace", |b| {
+        b.iter(|| tokenizer.encode_with_offsets(black_box(&text), false))
+    });
+
+    group.finish();
+}
+
 fn bench_decode(c: &mut Criterion) {
     let tokenizer = load_tokenizer();
     let text = load_text();
@@ -159,5 +173,5 @@ fn bench_token_count(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_encode, bench_decode, bench_count, bench_pretokenize, bench_bpe_only, bench_token_count);
+criterion_group!(benches, bench_encode, bench_encode_with_offsets, bench_decode, bench_count, bench_pretokenize, bench_bpe_only, bench_token_count);
 criterion_main!(benches);

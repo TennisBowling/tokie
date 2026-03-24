@@ -192,10 +192,10 @@ mod tests {
     fn test_from_pretrained_gpt2() {
         let tokenizer = Tokenizer::from_pretrained("gpt2").expect("Failed to load GPT-2");
         let tokens = tokenizer.encode("Hello, world!", false);
-        assert!(!tokens.is_empty());
+        assert!(!tokens.ids.is_empty());
 
         // Verify it produces expected tokens for GPT-2
-        let decoded = tokenizer.decode(&tokens).unwrap();
+        let decoded = tokenizer.decode(&tokens.ids).unwrap();
         assert_eq!(decoded, "Hello, world!");
     }
 
