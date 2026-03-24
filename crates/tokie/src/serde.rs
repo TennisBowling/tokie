@@ -35,7 +35,7 @@ use core::mem::size_of;
 use std::io::{Read, Write};
 
 use crate::encoder::{BacktrackingBytePairEncoder, BytePairEncoder, Encoder, EncoderType, SentencePieceBPE, UnigramEncoder, WordPieceEncoder};
-use crate::decoder::Decoder;
+use crate::decoder::{Decoder, DecoderType, VocabDecoder};
 use crate::normalizer::Normalizer;
 use crate::postprocessor::PostProcessor;
 use crate::pretok::PretokType;
@@ -257,7 +257,7 @@ impl Tokenizer {
         let decoder = self.decoder();
 
         // Serialize sections based on encoder type
-        let token_data = serialize_decoder(decoder);
+        let token_data = serialize_vocab_decoder(decoder.vocab());
 
         // Serialize sections based on encoder type
         let (merge_data, daac_data, prefix_data) = match encoder {
@@ -584,7 +584,8 @@ impl Tokenizer {
         };
 
         // Build decoder
-        let decoder = Decoder::from_parts(decoder_data, decoder_offsets);
+        let decoder_type = DecoderType::from_encoder_type(encoder_type);
+        let decoder = Decoder::from_parts(decoder_data, decoder_offsets, decoder_type);
 
         let mut tokenizer = Tokenizer::new(encoder, decoder, pretokenizer_type, normalizer, post_processor);
         if let Some(pad_id) = pad_token_id {
@@ -594,8 +595,8 @@ impl Tokenizer {
     }
 }
 
-/// Serialize the decoder's flat buffer.
-fn serialize_decoder(decoder: &Decoder) -> Vec<u8> {
+/// Serialize the vocab decoder's flat buffer.
+fn serialize_vocab_decoder(decoder: &VocabDecoder) -> Vec<u8> {
     let (data, offsets) = decoder.as_parts();
 
     // Format: num_offsets (u32) + offsets + data
@@ -993,7 +994,7 @@ mod tests {
             (256, 257),                  // abcd
         ];
         let (encoder, token_bytes) = crate::encoder::BacktrackingBytePairEncoder::from_merges(&merges, &base_tokens);
-        let decoder = crate::decoder::Decoder::new(token_bytes);
+        let decoder = Decoder::new(token_bytes);
         Tokenizer::new(Encoder::Backtracking(encoder), decoder, PretokType::Gpt2, Normalizer::None, PostProcessor::None)
     }
 
@@ -1005,7 +1006,7 @@ mod tests {
             (256, 257),                  // abcd
         ];
         let (encoder, token_bytes) = BytePairEncoder::from_merges(&merges, &base_tokens);
-        let decoder = crate::decoder::Decoder::new(token_bytes);
+        let decoder = Decoder::new(token_bytes);
         Tokenizer::new(Encoder::Simple(encoder), decoder, PretokType::Gpt2, Normalizer::None, PostProcessor::None)
     }
 

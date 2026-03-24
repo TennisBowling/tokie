@@ -1,4 +1,4 @@
-//! Decoder for converting token IDs back to bytes.
+//! VocabDecoder for converting token IDs back to bytes.
 //!
 //! This module provides a standalone decoder that can be shared across
 //! different encoder types (BPE, WordPiece, Unigram, etc.).
@@ -10,7 +10,7 @@
 
 use crate::types::TokenId;
 
-/// Decoder for converting token IDs back to bytes.
+/// VocabDecoder for converting token IDs back to bytes.
 ///
 /// Uses a flat buffer layout for optimal cache performance:
 /// - `data`: All token bytes concatenated in a single allocation
@@ -20,11 +20,11 @@ use crate::types::TokenId;
 ///
 /// # Example
 /// ```ignore
-/// let decoder = Decoder::new(token_bytes);
+/// let decoder = VocabDecoder::new(token_bytes);
 /// let text = decoder.decode(&[100, 200, 300]);
 /// ```
 #[derive(Clone)]
-pub struct Decoder {
+pub struct VocabDecoder {
     /// All token bytes concatenated.
     data: Vec<u8>,
     /// Start offset of each token. Length = vocab_size + 1.
@@ -32,7 +32,7 @@ pub struct Decoder {
     offsets: Vec<u32>,
 }
 
-impl Decoder {
+impl VocabDecoder {
     /// Create a decoder from pre-built parts (used for deserialization).
     pub fn from_parts(data: Vec<u8>, offsets: Vec<u32>) -> Self {
         Self { data, offsets }
@@ -199,13 +199,13 @@ mod tests {
 
     #[test]
     fn test_decode_empty() {
-        let decoder = Decoder::new(vec![vec![b'a'], vec![b'b']]);
+        let decoder = VocabDecoder::new(vec![vec![b'a'], vec![b'b']]);
         assert_eq!(decoder.decode(&[]), Vec::<u8>::new());
     }
 
     #[test]
     fn test_decode_single() {
-        let decoder = Decoder::new(vec![vec![b'a'], vec![b'b'], vec![b'c']]);
+        let decoder = VocabDecoder::new(vec![vec![b'a'], vec![b'b'], vec![b'c']]);
         assert_eq!(decoder.decode(&[0]), b"a");
         assert_eq!(decoder.decode(&[1]), b"b");
         assert_eq!(decoder.decode(&[2]), b"c");
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn test_decode_multiple() {
-        let decoder = Decoder::new(vec![
+        let decoder = VocabDecoder::new(vec![
             vec![b'H', b'e', b'l', b'l', b'o'],
             vec![b' '],
             vec![b'w', b'o', b'r', b'l', b'd'],
@@ -223,26 +223,26 @@ mod tests {
 
     #[test]
     fn test_decode_to_string() {
-        let decoder = Decoder::new(vec![vec![b'a'], vec![b'b'], vec![b'c']]);
+        let decoder = VocabDecoder::new(vec![vec![b'a'], vec![b'b'], vec![b'c']]);
         assert_eq!(decoder.decode_to_string(&[0, 1, 2]), Some("abc".to_string()));
     }
 
     #[test]
     fn test_vocab_size() {
-        let decoder = Decoder::new(vec![vec![b'a'], vec![b'b'], vec![b'c']]);
+        let decoder = VocabDecoder::new(vec![vec![b'a'], vec![b'b'], vec![b'c']]);
         assert_eq!(decoder.vocab_size(), 3);
     }
 
     #[test]
     fn test_token_to_bytes() {
-        let decoder = Decoder::new(vec![vec![b'a', b'b'], vec![b'c', b'd', b'e']]);
+        let decoder = VocabDecoder::new(vec![vec![b'a', b'b'], vec![b'c', b'd', b'e']]);
         assert_eq!(decoder.token_to_bytes(0), b"ab");
         assert_eq!(decoder.token_to_bytes(1), b"cde");
     }
 
     #[test]
     fn test_token_len() {
-        let decoder = Decoder::new(vec![vec![b'a'], vec![b'a', b'b'], vec![b'a', b'b', b'c']]);
+        let decoder = VocabDecoder::new(vec![vec![b'a'], vec![b'a', b'b'], vec![b'a', b'b', b'c']]);
         assert_eq!(decoder.token_len(0), 1);
         assert_eq!(decoder.token_len(1), 2);
         assert_eq!(decoder.token_len(2), 3);
@@ -252,7 +252,7 @@ mod tests {
     fn test_parallel_decode_matches_sequential() {
         // Create decoder with some tokens
         let token_bytes: Vec<Vec<u8>> = (0u8..=255).map(|b| vec![b]).collect();
-        let decoder = Decoder::new(token_bytes);
+        let decoder = VocabDecoder::new(token_bytes);
 
         // Create a large token sequence (above parallel threshold)
         let tokens: Vec<TokenId> = (0..100_000).map(|i| (i % 256) as TokenId).collect();
@@ -273,7 +273,7 @@ mod tests {
             vec![b'B', b'B'],     // 2 bytes
             vec![b'C', b'C', b'C'], // 3 bytes
         ];
-        let decoder = Decoder::new(token_bytes);
+        let decoder = VocabDecoder::new(token_bytes);
 
         // Create pattern that will span chunk boundaries
         let tokens: Vec<TokenId> = (0..60_000).map(|i| (i % 3) as TokenId).collect();

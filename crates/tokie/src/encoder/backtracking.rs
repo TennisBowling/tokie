@@ -629,7 +629,7 @@ impl Bitfield {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::decoder::Decoder;
+    use crate::decoder::VocabDecoder;
 
     #[test]
     fn test_from_merges() {
@@ -637,7 +637,7 @@ mod tests {
         let merges = vec![(0, 1), (3, 2)];
 
         let (encoder, token_bytes) = BacktrackingBytePairEncoder::from_merges(&merges, &base_tokens);
-        let decoder = Decoder::new(token_bytes);
+        let decoder = VocabDecoder::new(token_bytes);
 
         assert_eq!(encoder.vocab_size(), 5);
         assert_eq!(encoder.num_base_tokens(), 3);
@@ -692,7 +692,7 @@ mod tests {
         let merges = vec![(0, 1), (2, 3), (4, 5)];
 
         let (encoder, token_bytes) = BacktrackingBytePairEncoder::from_merges(&merges, &base_tokens);
-        let decoder = Decoder::new(token_bytes);
+        let decoder = VocabDecoder::new(token_bytes);
 
         for text in [b"abcd".as_slice(), b"ab", b"cd", b"abcdabcd", b"a", b""] {
             let encoded = encoder.encode(text);

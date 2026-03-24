@@ -328,7 +328,7 @@ fn load_byte_level_bpe(
             (Encoder::Simple(enc), bytes)
         }
     };
-    let decoder = Decoder::new(token_bytes);
+    let decoder = Decoder::for_encoder(token_bytes, encoder.encoder_type());
     let post_processor = detect_post_processor(data);
 
     let mut tokenizer = Tokenizer::new(encoder, decoder, pretokenizer_type, normalizer, post_processor);
@@ -428,7 +428,7 @@ fn load_vocab_defined_bpe(
             BacktrackingBytePairEncoder::from_vocab_and_merges(&full_vocab, &merges, num_base_tokens);
         (Encoder::Backtracking(enc), bytes)
     };
-    let decoder = Decoder::new(token_bytes);
+    let decoder = Decoder::for_encoder(token_bytes, encoder.encoder_type());
     let post_processor = detect_post_processor(data);
 
     let mut tokenizer = Tokenizer::new(encoder, decoder, pretokenizer_type, normalizer, post_processor);
@@ -861,7 +861,7 @@ fn load_wordpiece(
     );
 
     // Build decoder
-    let decoder = Decoder::new(token_bytes);
+    let decoder = Decoder::for_encoder(token_bytes, EncoderType::WordPiece);
 
     // Use BERT pretokenizer if not specified
     let pretok = if pretokenizer_type == PretokType::None {
@@ -925,7 +925,7 @@ fn load_unigram(
     let (encoder, token_bytes) = UnigramEncoder::from_vocab_with_scores(&vocab, unk_id);
 
     // Build decoder
-    let decoder = Decoder::new(token_bytes);
+    let decoder = Decoder::for_encoder(token_bytes, EncoderType::Unigram);
 
     // Determine pretokenizer - Unigram models often use Metaspace pretokenizer
     let pretok = if pretokenizer_type == PretokType::None {

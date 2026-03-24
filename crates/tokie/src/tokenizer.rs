@@ -12,7 +12,7 @@ use foldhash::HashMap as FoldHashMap;
 use chunk::chunk;
 
 use crate::encoder::{Encoder, EncoderIter, EncoderType};
-use crate::decoder::Decoder;
+use crate::decoder::{Decoder, DecoderType};
 use crate::hf::{self, JsonLoadError};
 use crate::normalizer::Normalizer;
 use crate::padding::{Encoding, PaddingParams, TruncationParams, pad_batch, pad_encoding, truncate_ids, truncate_pair};
@@ -86,6 +86,7 @@ impl Tokenizer {
     pub fn normalizer(&self) -> Normalizer { self.normalizer }
     pub fn post_processor(&self) -> &PostProcessor { &self.post_processor }
     pub fn encoder_type(&self) -> EncoderType { self.encoder.encoder_type() }
+    pub fn decoder_type(&self) -> DecoderType { self.decoder.decoder_type() }
     pub fn encoder(&self) -> &Encoder { &self.encoder }
     pub fn decoder(&self) -> &Decoder { &self.decoder }
     pub fn pretokenizer(&self) -> Option<&Pretok> { self.pretokenizer.as_ref() }
@@ -344,13 +345,22 @@ impl Tokenizer {
 
     // --- Decoding ---
 
-    /// Decode token IDs back to a string. Returns `None` if not valid UTF-8.
+    /// Decode token IDs back to a string, applying text-level post-processing.
+    ///
+    /// Behavior depends on the [`DecoderType`]:
+    /// - **WordPiece**: Strips `##` continuation prefixes, joins tokens with spaces,
+    ///   and skips special tokens (CLS, SEP, etc.)
+    /// - **Metaspace** (SentencePiece/Unigram): Replaces `▁` with spaces, strips leading space
+    /// - **ByteLevel** (BPE): Direct byte concatenation (already correct)
+    ///
+    /// Returns `None` if the result is not valid UTF-8.
     pub fn decode(&self, tokens: &[TokenId]) -> Option<String> {
-        self.decoder.decode_to_string(tokens)
+        self.decoder.decode(tokens, &self.post_processor)
     }
 
+    /// Raw byte-level decode without text post-processing.
     pub fn decode_bytes(&self, tokens: &[TokenId]) -> Vec<u8> {
-        self.decoder.decode(tokens)
+        self.decoder.decode_bytes(tokens)
     }
 
     /// Decode multiple token sequences in parallel.

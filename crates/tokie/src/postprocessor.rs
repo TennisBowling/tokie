@@ -79,6 +79,24 @@ impl PostProcessor {
         matches!(self, PostProcessor::None)
     }
 
+    /// Check if a token ID is a special token added by this post-processor.
+    pub fn is_special_token(&self, id: TokenId) -> bool {
+        match self {
+            PostProcessor::None => false,
+            PostProcessor::Bert { cls_token, sep_token } => id == *cls_token || id == *sep_token,
+            PostProcessor::Prefix { bos_token } => id == *bos_token,
+            PostProcessor::Template {
+                single_prefix, single_suffix,
+                pair_a_prefix, pair_a_suffix,
+                pair_b_prefix, pair_b_suffix,
+            } => {
+                single_prefix.contains(&id) || single_suffix.contains(&id) ||
+                pair_a_prefix.contains(&id) || pair_a_suffix.contains(&id) ||
+                pair_b_prefix.contains(&id) || pair_b_suffix.contains(&id)
+            }
+        }
+    }
+
     /// Process a single sequence by adding special tokens.
     pub fn process(&self, tokens: &[TokenId]) -> Vec<TokenId> {
         match self {

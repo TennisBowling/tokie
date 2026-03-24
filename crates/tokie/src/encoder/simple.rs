@@ -316,7 +316,7 @@ impl BytePairEncoder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::decoder::Decoder;
+    use crate::decoder::VocabDecoder;
 
     #[test]
     fn test_encode_basic() {
@@ -324,7 +324,7 @@ mod tests {
         let merges = vec![(0, 1), (3, 2)]; // a+b->ab(3), ab+c->abc(4)
 
         let (encoder, token_bytes) = BytePairEncoder::from_merges(&merges, &base_tokens);
-        let decoder = Decoder::new(token_bytes);
+        let decoder = VocabDecoder::new(token_bytes);
 
         let encoded = encoder.encode(b"abc");
         assert_eq!(encoded, vec![4]); // abc
@@ -365,7 +365,7 @@ mod tests {
         let merges = vec![(0, 1), (2, 3), (4, 5)];
 
         let (encoder, token_bytes) = BytePairEncoder::from_merges(&merges, &base_tokens);
-        let decoder = Decoder::new(token_bytes);
+        let decoder = VocabDecoder::new(token_bytes);
 
         for text in [b"abcd".as_slice(), b"ab", b"cd", b"abcdabcd", b"a", b""] {
             let encoded = encoder.encode(text);

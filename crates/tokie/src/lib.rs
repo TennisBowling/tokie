@@ -66,7 +66,7 @@ mod tokenizer;
 mod types;
 
 pub use encoder::{BacktrackingBytePairEncoder, BytePairEncoder, EncodeIter, Encoder, EncoderIter, EncoderType};
-pub use decoder::Decoder;
+pub use decoder::{Decoder, DecoderType, VocabDecoder};
 pub use hf::JsonLoadError;
 #[cfg(feature = "hf")]
 pub use hub::{FromPretrainedOptions, HubError};
