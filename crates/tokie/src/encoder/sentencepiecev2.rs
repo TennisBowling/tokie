@@ -9,7 +9,7 @@
 //! Instead, we scan for the longest matching token at each position.
 
 use foldhash::HashMap as FoldHashMap;
-use memchunk::chunk;
+use chunk::chunk;
 use smallvec::SmallVec;
 
 use crate::types::TokenId;

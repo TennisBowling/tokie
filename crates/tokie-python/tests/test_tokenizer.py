@@ -196,3 +196,36 @@ def test_no_padding_no_truncation():
     # Should behave as default now
     enc = t.encode("Hello world test sentence")
     assert all(m == 1 for m in enc.attention_mask)
+
+
+def test_id_to_token():
+    t = tokie.Tokenizer.from_pretrained("bert-base-uncased")
+    # BERT token 101 = [CLS], 102 = [SEP]
+    assert t.id_to_token(101) == "[CLS]"
+    assert t.id_to_token(102) == "[SEP]"
+    assert t.id_to_token(999999) is None
+
+
+def test_token_to_id():
+    t = tokie.Tokenizer.from_pretrained("bert-base-uncased")
+    assert t.token_to_id("[CLS]") == 101
+    assert t.token_to_id("[SEP]") == 102
+    assert t.token_to_id("nonexistent_xyz") is None
+
+
+def test_get_vocab():
+    t = tokie.Tokenizer.from_pretrained("bert-base-uncased")
+    vocab = t.get_vocab()
+    assert isinstance(vocab, dict)
+    assert len(vocab) > 0
+    assert vocab["[CLS]"] == 101
+
+
+def test_decode_batch():
+    t = tokie.Tokenizer.from_pretrained("bert-base-uncased")
+    enc1 = t.encode("Hello", add_special_tokens=False)
+    enc2 = t.encode("World", add_special_tokens=False)
+    results = t.decode_batch([enc1.ids, enc2.ids])
+    assert len(results) == 2
+    assert results[0] == "hello"
+    assert results[1] == "world"

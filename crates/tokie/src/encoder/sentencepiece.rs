@@ -19,7 +19,7 @@
 //! # Features
 //!
 //! - **Zero-allocation encoding** via [`EncodeState`] for repeated calls
-//! - **Parallel chunking** via [`SentencePieceBPE::encode_chunked`] using memchunk
+//! - **Parallel chunking** via [`SentencePieceBPE::encode_chunked`] using chunk
 //! - **Cache-friendly** processing for large documents
 //!
 //! # Example
@@ -39,7 +39,7 @@
 //! ```
 
 use foldhash::HashMap as FoldHashMap;
-use memchunk::chunk;
+use chunk::chunk;
 
 use crate::types::TokenId;
 
@@ -629,7 +629,7 @@ impl SentencePieceBPE {
     /// For large texts, this splits at metaspace (▁) boundaries and encodes
     /// each chunk separately. This improves L1/L2 cache utilization.
     ///
-    /// Uses memchunk with `consecutive()` to split at the START of metaspace
+    /// Uses chunk with `consecutive()` to split at the START of metaspace
     /// runs (preserving `▁▁▁` sequences) and `forward_fallback()` to avoid
     /// mid-word splits.
     ///

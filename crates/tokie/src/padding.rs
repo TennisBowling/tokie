@@ -195,10 +195,10 @@ pub fn truncate_pair(
             }
         }
         TruncationStrategy::OnlyFirst => {
-            truncate_ids(tokens_a, tokens_a.len().saturating_sub(to_remove).max(0), direction);
+            truncate_ids(tokens_a, tokens_a.len().saturating_sub(to_remove), direction);
         }
         TruncationStrategy::OnlySecond => {
-            truncate_ids(tokens_b, tokens_b.len().saturating_sub(to_remove).max(0), direction);
+            truncate_ids(tokens_b, tokens_b.len().saturating_sub(to_remove), direction);
         }
     }
 }

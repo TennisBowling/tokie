@@ -7,7 +7,7 @@
 
 use daggrs::{DoubleArrayAhoCorasick, MatchKind, Trie};
 use foldhash::HashMap as FoldHashMap;
-use memchunk::chunk;
+use chunk::chunk;
 use smallvec::SmallVec;
 use std::collections::VecDeque;
 use std::thread;

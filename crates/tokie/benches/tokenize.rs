@@ -42,10 +42,9 @@ fn bench_encode(c: &mut Criterion) {
 fn bench_decode(c: &mut Criterion) {
     let tokenizer = load_tokenizer();
     let text = load_text();
-    let tokens = tokenizer.encode(&text, false);
+    let tokens = tokenizer.encode(&text, false).ids;
 
     let mut group = c.benchmark_group("decode");
-    // Measure output bytes per second (the decoded text size)
     group.throughput(Throughput::Bytes(text.len() as u64));
 
     group.bench_function("war_and_peace", |b| {

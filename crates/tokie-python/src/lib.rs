@@ -1,5 +1,7 @@
 use std::sync::RwLock;
 
+use std::collections::HashMap;
+
 use pyo3::prelude::*;
 use pyo3::create_exception;
 use pyo3::types::PyBytes;
@@ -136,6 +138,29 @@ impl PyTokenizer {
     fn decode_bytes<'py>(&self, py: Python<'py>, tokens: Vec<u32>) -> Bound<'py, PyBytes> {
         let bytes = self.read().decode_bytes(&tokens);
         PyBytes::new(py, &bytes)
+    }
+
+    /// Convert a token ID to its string representation.
+    fn id_to_token(&self, id: u32) -> Option<String> {
+        self.read().id_to_token(id).map(|s| s.into_owned())
+    }
+
+    /// Convert a token string to its ID.
+    fn token_to_id(&self, token: &str) -> Option<u32> {
+        self.read().token_to_id(token)
+    }
+
+    /// Get the full vocabulary as a dict mapping token strings to IDs.
+    fn get_vocab(&self) -> HashMap<String, u32> {
+        self.read().get_vocab()
+    }
+
+    /// Decode multiple token ID sequences in parallel.
+    fn decode_batch(&self, py: Python<'_>, sequences: Vec<Vec<u32>>) -> Vec<Option<String>> {
+        let inner = self.read();
+        py.allow_threads(|| {
+            sequences.iter().map(|tokens| inner.decode(tokens)).collect()
+        })
     }
 
     /// Encode multiple texts in parallel, returning a list of Encoding objects.
