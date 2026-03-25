@@ -420,6 +420,25 @@ fn decode_utf8(bytes: &[u8]) -> (char, usize) {
     }
 }
 
+/// Check if a character is a CJK ideograph (used by BERT pretokenizer).
+///
+/// This matches the ranges used by HuggingFace's `_is_chinese_char`:
+/// <https://github.com/huggingface/tokenizers/blob/main/tokenizers/src/pre_tokenizers/bert.rs>
+#[inline]
+fn is_cjk_character(c: char) -> bool {
+    let cp = c as u32;
+    matches!(cp,
+        0x4E00..=0x9FFF       // CJK Unified Ideographs
+        | 0x3400..=0x4DBF     // CJK Unified Ideographs Extension A
+        | 0x20000..=0x2A6DF   // CJK Unified Ideographs Extension B
+        | 0x2A700..=0x2B73F   // CJK Unified Ideographs Extension C
+        | 0x2B740..=0x2B81F   // CJK Unified Ideographs Extension D
+        | 0x2B820..=0x2CEAF   // CJK Unified Ideographs Extension E
+        | 0xF900..=0xFAFF     // CJK Compatibility Ideographs
+        | 0x2F800..=0x2FA1F   // CJK Compatibility Ideographs Supplement
+    )
+}
+
 /// Classify a Unicode character.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum UnicodeClass {
@@ -427,7 +446,36 @@ enum UnicodeClass {
     Number,
     Newline,
     Whitespace,
+    CJK,
+    Punctuation,
     Other,
+}
+
+/// Check if a Unicode character is punctuation (for BERT pretokenizer).
+///
+/// Matches HuggingFace's `_is_punctuation`: ASCII punct ranges + Unicode P* categories.
+#[inline]
+fn is_unicode_punctuation(c: char) -> bool {
+    let cp = c as u32;
+    // ASCII punctuation ranges (same as HF)
+    if (33..=47).contains(&cp)
+        || (58..=64).contains(&cp)
+        || (91..=96).contains(&cp)
+        || (123..=126).contains(&cp)
+    {
+        return true;
+    }
+    // Unicode Punctuation categories
+    matches!(
+        get_general_category(c),
+        GeneralCategory::ConnectorPunctuation
+            | GeneralCategory::DashPunctuation
+            | GeneralCategory::ClosePunctuation
+            | GeneralCategory::FinalPunctuation
+            | GeneralCategory::InitialPunctuation
+            | GeneralCategory::OtherPunctuation
+            | GeneralCategory::OpenPunctuation
+    )
 }
 
 #[inline]
@@ -436,10 +484,14 @@ fn classify_unicode(c: char) -> UnicodeClass {
         UnicodeClass::Newline
     } else if c.is_whitespace() {
         UnicodeClass::Whitespace
+    } else if is_cjk_character(c) {
+        UnicodeClass::CJK
     } else if is_unicode_letter(c) {
         UnicodeClass::Letter
     } else if is_unicode_number(c) {
         UnicodeClass::Number
+    } else if is_unicode_punctuation(c) {
+        UnicodeClass::Punctuation
     } else {
         UnicodeClass::Other
     }
@@ -540,10 +592,12 @@ impl PretokIter<'_> {
     }
 
     /// Simple letter scanning: `\p{L}+`
+    /// In BERT mode, stops at CJK and punctuation but continues through marks.
     #[inline]
     fn scan_letters_simple(&mut self) {
         let bytes = self.bytes;
         let len = self.len;
+        let bert_mode = self.config.individual_punctuation;
 
         while self.pos < len {
             let b = unsafe { *bytes.get_unchecked(self.pos) };
@@ -553,7 +607,16 @@ impl PretokIter<'_> {
                 return;
             } else {
                 let (c, char_len) = decode_utf8(unsafe { bytes.get_unchecked(self.pos..) });
-                if is_unicode_letter(c) {
+                if bert_mode {
+                    // In BERT mode: continue through letters and marks,
+                    // stop at CJK, punctuation, whitespace, numbers
+                    match classify_unicode(c) {
+                        UnicodeClass::Letter | UnicodeClass::Other => {
+                            self.pos += char_len;
+                        }
+                        _ => return,
+                    }
+                } else if is_unicode_letter(c) {
                     self.pos += char_len;
                 } else {
                     return;
@@ -745,10 +808,12 @@ impl PretokIter<'_> {
     }
 
     /// Continue scanning both letters and numbers until neither is found.
+    /// In BERT mode, stops at CJK and punctuation but continues through marks.
     #[inline]
     fn scan_alphanumeric_continuation(&mut self) {
         let bytes = self.bytes;
         let len = self.len;
+        let bert_mode = self.config.individual_punctuation;
 
         while self.pos < len {
             let b = unsafe { *bytes.get_unchecked(self.pos) };
@@ -758,10 +823,43 @@ impl PretokIter<'_> {
                 return;
             } else {
                 let (c, char_len) = decode_utf8(unsafe { bytes.get_unchecked(self.pos..) });
-                if is_unicode_letter(c) || is_unicode_number(c) {
+                if bert_mode {
+                    match classify_unicode(c) {
+                        UnicodeClass::Letter | UnicodeClass::Number | UnicodeClass::Other => {
+                            self.pos += char_len;
+                        }
+                        _ => return,
+                    }
+                } else if is_unicode_letter(c) || is_unicode_number(c) {
                     self.pos += char_len;
                 } else {
                     return;
+                }
+            }
+        }
+    }
+
+    /// Scan word characters in BERT mode: letters, numbers, marks, and other non-punct chars.
+    /// Stops at whitespace, punctuation, and CJK characters.
+    #[inline]
+    fn scan_bert_word_chars(&mut self) {
+        let bytes = self.bytes;
+        let len = self.len;
+
+        while self.pos < len {
+            let b = unsafe { *bytes.get_unchecked(self.pos) };
+            if is_ascii_letter(b) || (b >= b'0' && b <= b'9') {
+                self.pos += 1;
+            } else if b < 0x80 {
+                // ASCII non-alnum: whitespace or punctuation — stop
+                return;
+            } else {
+                let (c, char_len) = decode_utf8(unsafe { bytes.get_unchecked(self.pos..) });
+                match classify_unicode(c) {
+                    UnicodeClass::Letter | UnicodeClass::Number | UnicodeClass::Other => {
+                        self.pos += char_len;
+                    }
+                    _ => return, // Whitespace, Newline, CJK, Punctuation — stop
                 }
             }
         }
@@ -787,10 +885,11 @@ impl PretokIter<'_> {
                 self.pos += 1;
             } else if b >= 0x80 {
                 let (c, char_len) = decode_utf8(unsafe { bytes.get_unchecked(self.pos..) });
-                if classify_unicode(c) == UnicodeClass::Other {
-                    self.pos += char_len;
-                } else {
-                    break;
+                match classify_unicode(c) {
+                    UnicodeClass::Other | UnicodeClass::Punctuation => {
+                        self.pos += char_len;
+                    }
+                    _ => break,
                 }
             } else {
                 break;
@@ -1012,7 +1111,7 @@ impl PretokIter<'_> {
                     UnicodeClass::Whitespace | UnicodeClass::Newline => {
                         self.scan_whitespace(start);
                     }
-                    UnicodeClass::Other | UnicodeClass::Letter => {
+                    UnicodeClass::CJK | UnicodeClass::Punctuation | UnicodeClass::Other | UnicodeClass::Letter => {
                         // Letter case already handled by try_scan_prefix_letters
                         self.pos += 1 + char_len;
                         self.scan_other();
@@ -1048,6 +1147,16 @@ impl PretokIter<'_> {
         self.pos += char_len;
 
         match classify_unicode(c) {
+            UnicodeClass::CJK => {
+                if self.config.individual_punctuation {
+                    // BERT mode: each CJK character is its own word (no grouping)
+                    // Just return the single character
+                } else {
+                    // Non-BERT: treat CJK as letters
+                    self.scan_letters();
+                    self.try_contraction_suffix_if_needed();
+                }
+            }
             UnicodeClass::Letter => {
                 self.scan_letters();
                 self.try_contraction_suffix_if_needed();
@@ -1059,14 +1168,34 @@ impl PretokIter<'_> {
                 self.pos -= char_len;
                 self.scan_whitespace(start);
             }
-            UnicodeClass::Other => {
-                // Check for letter prefix (CL100K/O200K style)
-                if self.config.letter_prefix == LetterPrefix::NonNewlineNonAlnum
-                    && self.try_scan_prefix_letters(0)
-                {
-                    return;
+            UnicodeClass::Punctuation => {
+                if self.config.individual_punctuation {
+                    // BERT mode: each punctuation is a separate token
+                    // Just return the single character (already consumed)
+                } else {
+                    // Check for letter prefix (CL100K/O200K style)
+                    if self.config.letter_prefix == LetterPrefix::NonNewlineNonAlnum
+                        && self.try_scan_prefix_letters(0)
+                    {
+                        return;
+                    }
+                    self.scan_other();
                 }
-                self.scan_other();
+            }
+            UnicodeClass::Other => {
+                if self.config.individual_punctuation {
+                    // BERT mode: non-punct/non-letter chars (marks, symbols) attach to words
+                    // Continue scanning as part of the word
+                    self.scan_bert_word_chars();
+                } else {
+                    // Check for letter prefix (CL100K/O200K style)
+                    if self.config.letter_prefix == LetterPrefix::NonNewlineNonAlnum
+                        && self.try_scan_prefix_letters(0)
+                    {
+                        return;
+                    }
+                    self.scan_other();
+                }
             }
         }
     }
@@ -1299,6 +1428,47 @@ mod tests {
         // Voyage: case-insensitive standalone contractions
         assert_eq!(Pretok::VOYAGE.split_to_vec("don't"), vec!["don", "'t"]);
         assert_eq!(Pretok::VOYAGE.split_to_vec("DON'T"), vec!["DON", "'T"]);
+    }
+
+    // BERT CJK tests
+    #[test]
+    fn test_bert_cjk_individual() {
+        // BERT: each CJK character is a separate token
+        assert_eq!(Pretok::BERT.split_to_vec("你好世界"), vec!["你", "好", "世", "界"]);
+    }
+
+    #[test]
+    fn test_bert_cjk_mixed_with_ascii() {
+        // CJK chars break words
+        assert_eq!(Pretok::BERT.split_to_vec("hello你好world"), vec!["hello", "你", "好", "world"]);
+        assert_eq!(Pretok::BERT.split_to_vec("test政策test"), vec!["test", "政", "策", "test"]);
+    }
+
+    #[test]
+    fn test_bert_cjk_with_punctuation() {
+        assert_eq!(Pretok::BERT.split_to_vec("你好!"), vec!["你", "好", "!"]);
+        assert_eq!(Pretok::BERT.split_to_vec("[你好]"), vec!["[", "你", "好", "]"]);
+    }
+
+    #[test]
+    fn test_bert_cjk_spacing_marks() {
+        // Tamil: spacing marks (Mc) should stay with letters, not split
+        // மதியிய = ம + த + ி(Mc) + ய + ி(Mc) + ய → single word
+        assert_eq!(Pretok::BERT.split_to_vec("மதியிய"), vec!["மதியிய"]);
+    }
+
+    #[test]
+    fn test_bert_unicode_punctuation() {
+        // Unicode punctuation should be split (like ASCII punct)
+        // « and » are InitialPunctuation/FinalPunctuation
+        assert_eq!(Pretok::BERT.split_to_vec("«hello»"), vec!["«", "hello", "»"]);
+    }
+
+    #[test]
+    fn test_non_bert_cjk_grouped() {
+        // Non-BERT modes: CJK characters are grouped as letters
+        assert_eq!(Pretok::CL100K.split_to_vec("你好世界"), vec!["你好世界"]);
+        assert_eq!(Pretok::GPT2.split_to_vec("你好世界"), vec!["你好世界"]);
     }
 
     // CL100K tab prefix tests (regression)
