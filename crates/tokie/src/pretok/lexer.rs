@@ -885,10 +885,11 @@ impl PretokIter<'_> {
                 self.pos += 1;
             } else if b >= 0x80 {
                 let (c, char_len) = decode_utf8(unsafe { bytes.get_unchecked(self.pos..) });
-                if classify_unicode(c) == UnicodeClass::Other {
-                    self.pos += char_len;
-                } else {
-                    break;
+                match classify_unicode(c) {
+                    UnicodeClass::Other | UnicodeClass::Punctuation => {
+                        self.pos += char_len;
+                    }
+                    _ => break,
                 }
             } else {
                 break;
