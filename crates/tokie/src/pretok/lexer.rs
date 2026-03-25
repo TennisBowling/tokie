@@ -65,7 +65,7 @@ pub enum ContractionPosition {
 /// **Contraction handling**: `contraction_position`, `case_insensitive_contractions`
 /// **Number handling**: `max_number_digits`, `space_prefix_numbers`, `keep_alphanumeric_together`
 /// **Punctuation handling**: `individual_punctuation`, `punct_trailing_newlines`, `punct_trailing_slash`
-/// **Whitespace handling**: `include_leading_space`, `add_prefix_space`, `newline_lookahead`
+/// **Whitespace handling**: `include_leading_space`, `add_prefix_space`, `newline_lookahead`, `newline_anchored_whitespace`
 #[derive(Clone, Copy, Debug)]
 pub struct Pretok {
     // --- Letter handling ---
@@ -103,6 +103,8 @@ pub struct Pretok {
     pub add_prefix_space: bool,
     /// Whether newline sequences use lookahead for grouping (GPT-2: true).
     pub newline_lookahead: bool,
+    /// Whether whitespace runs anchor on the last newline: `\s*[\r\n]+` (CL100K/Llama/Qwen: true).
+    pub newline_anchored_whitespace: bool,
 }
 
 impl Pretok {
@@ -128,6 +130,7 @@ impl Pretok {
         include_leading_space: true,
         add_prefix_space: true,
         newline_lookahead: true,
+        newline_anchored_whitespace: false,
     };
 
     /// CL100K compatible configuration.
@@ -152,6 +155,7 @@ impl Pretok {
         include_leading_space: true,
         add_prefix_space: false,
         newline_lookahead: false,
+        newline_anchored_whitespace: true,
     };
 
     /// O200K compatible configuration.
@@ -176,6 +180,7 @@ impl Pretok {
         include_leading_space: true,
         add_prefix_space: false,
         newline_lookahead: false,
+        newline_anchored_whitespace: true,
     };
 
     /// Voyage compatible configuration.
@@ -205,6 +210,7 @@ impl Pretok {
         include_leading_space: true,
         add_prefix_space: false,
         newline_lookahead: false,
+        newline_anchored_whitespace: true,
     };
 
     /// BERT compatible configuration.
@@ -235,6 +241,7 @@ impl Pretok {
         include_leading_space: false,
         add_prefix_space: false,
         newline_lookahead: false,
+        newline_anchored_whitespace: false,
     };
 
     /// Split text into pre-tokens.
@@ -330,18 +337,28 @@ impl<'a> Iterator for PretokIter<'a> {
                     let len = self.check_contraction();
                     if len > 0 {
                         self.pos += len;
+                    } else if self.config.letter_prefix == LetterPrefix::NonNewlineNonAlnum
+                        && self.try_scan_prefix_letters(1)
+                    {
+                        // Apostrophe as letter prefix: 'être (CL100K/Llama/Qwen pattern)
                     } else {
                         self.pos += 1;
                         self.scan_other();
                     }
                 } else {
-                    // O200K: apostrophe is just punctuation
-                    self.pos += 1;
-                    self.scan_other();
+                    // O200K: apostrophe could prefix letters or is just punctuation
+                    if self.config.letter_prefix == LetterPrefix::NonNewlineNonAlnum
+                        && self.try_scan_prefix_letters(1)
+                    {
+                        // Apostrophe as letter prefix
+                    } else {
+                        self.pos += 1;
+                        self.scan_other();
+                    }
                 }
             }
             b'\r' | b'\n' => {
-                self.scan_newlines_or_whitespace(start);
+                self.scan_whitespace(start);
             }
             b'\t' | 0x0B | 0x0C => {
                 // CL100K/O200K: tabs can prefix letters: `[^\r\n\p{L}\p{N}]?\p{L}+`
@@ -944,48 +961,57 @@ impl PretokIter<'_> {
         contraction_len
     }
 
-    /// Scan whitespace with lookahead.
+    /// Unified whitespace scanner.
+    ///
+    /// Handles all whitespace modes:
+    /// - `newline_anchored_whitespace` (CL100K/Llama/Qwen): `\s*[\r\n]+|\s+(?!\S)|\s+`
+    /// - `newline_lookahead` (GPT-2): `\s+(?!\S)|\s`
     #[inline]
     fn scan_whitespace(&mut self, start: usize) {
+        // Consume first whitespace char (ASCII, 1 byte)
+        self.pos += 1;
+        self.scan_whitespace_continue(start);
+    }
+
+    /// Continue scanning whitespace after the first character has been consumed.
+    #[inline]
+    fn scan_whitespace_continue(&mut self, start: usize) {
         let bytes = self.bytes;
         let len = self.len;
 
-        // Consume first whitespace
-        self.pos += 1;
-
-        // Continue consuming whitespace
+        // Continue consuming all whitespace
         while self.pos < len {
             let b = unsafe { *bytes.get_unchecked(self.pos) };
-            if b == b' ' || b == b'\t' || b == 0x0B || b == 0x0C {
-                self.pos += 1;
-            } else if b == b'\r' || b == b'\n' {
-                // Hit newline - consume it and any following newlines
-                self.pos += 1;
-                while self.pos < len {
-                    let b2 = unsafe { *bytes.get_unchecked(self.pos) };
-                    if b2 == b'\r' || b2 == b'\n' {
-                        self.pos += 1;
+            match b {
+                b' ' | b'\t' | b'\r' | b'\n' | 0x0B | 0x0C => {
+                    self.pos += 1;
+                }
+                0x80..=0xFF => {
+                    let (c, char_len) = decode_utf8(unsafe { bytes.get_unchecked(self.pos..) });
+                    if c.is_whitespace() {
+                        self.pos += char_len;
                     } else {
                         break;
                     }
                 }
-                return; // No lookahead adjustment for newline patterns
-            } else if b >= 0x80 {
-                let (c, char_len) = decode_utf8(unsafe { bytes.get_unchecked(self.pos..) });
-                if c == '\r' || c == '\n' {
-                    self.pos += char_len;
-                    return;
-                } else if c.is_whitespace() {
-                    self.pos += char_len;
-                } else {
-                    break;
-                }
-            } else {
-                break;
+                _ => break,
             }
         }
 
-        // Apply lookahead: if consumed >1 whitespace and non-whitespace follows, back up one
+        if self.config.newline_anchored_whitespace {
+            // \s*[\r\n]+ pattern: find last newline in the consumed whitespace, split there.
+            // This handles CL100K/Llama/Qwen patterns where whitespace runs anchor on newlines.
+            for i in (start..self.pos).rev() {
+                let b = unsafe { *bytes.get_unchecked(i) };
+                if b == b'\r' || b == b'\n' {
+                    self.pos = i + 1;
+                    return;
+                }
+            }
+            // No newline found: fall through to lookahead
+        }
+
+        // \s+(?!\S) pattern: back up by 1 if non-whitespace follows
         let consumed = self.pos - start;
         if consumed > 1 && self.pos < len {
             let next_b = unsafe { *bytes.get_unchecked(self.pos) };
@@ -993,69 +1019,14 @@ impl PretokIter<'_> {
                 || next_b == b'\t'
                 || next_b == b'\r'
                 || next_b == b'\n'
+                || next_b == 0x0B
+                || next_b == 0x0C
                 || (next_b >= 0x80 && {
                     let (c, _) = decode_utf8(unsafe { bytes.get_unchecked(self.pos..) });
                     c.is_whitespace()
                 });
             if !is_next_ws {
                 self.pos -= 1;
-            }
-        }
-    }
-
-    /// Scan newlines/whitespace with optional lookahead.
-    #[inline]
-    fn scan_newlines_or_whitespace(&mut self, start: usize) {
-        let bytes = self.bytes;
-        let len = self.len;
-
-        // Consume the first newline
-        self.pos += 1;
-
-        if self.config.newline_lookahead {
-            // GPT-2 style: newlines are part of whitespace, use lookahead
-            // Continue consuming all whitespace
-            while self.pos < len {
-                let b = unsafe { *bytes.get_unchecked(self.pos) };
-                if b == b'\r' || b == b'\n' || b == b' ' || b == b'\t' {
-                    self.pos += 1;
-                } else if b >= 0x80 {
-                    let (c, char_len) = decode_utf8(unsafe { bytes.get_unchecked(self.pos..) });
-                    if c.is_whitespace() {
-                        self.pos += char_len;
-                    } else {
-                        break;
-                    }
-                } else {
-                    break;
-                }
-            }
-
-            // Apply lookahead: if consumed >1 and non-whitespace follows, back up one
-            let consumed = self.pos - start;
-            if consumed > 1 && self.pos < len {
-                let next_b = unsafe { *bytes.get_unchecked(self.pos) };
-                let is_next_ws = next_b == b' '
-                    || next_b == b'\t'
-                    || next_b == b'\r'
-                    || next_b == b'\n'
-                    || (next_b >= 0x80 && {
-                        let (c, _) = decode_utf8(unsafe { bytes.get_unchecked(self.pos..) });
-                        c.is_whitespace()
-                    });
-                if !is_next_ws {
-                    self.pos -= 1;
-                }
-            }
-        } else {
-            // CL100K style: `\s*[\r\n]+` - consume only newlines, no lookahead
-            while self.pos < len {
-                let b = unsafe { *bytes.get_unchecked(self.pos) };
-                if b == b'\r' || b == b'\n' {
-                    self.pos += 1;
-                } else {
-                    break;
-                }
             }
         }
     }
@@ -1162,11 +1133,11 @@ impl PretokIter<'_> {
                 self.try_contraction_suffix_if_needed();
             }
             UnicodeClass::Number => self.scan_numbers(1),
-            UnicodeClass::Newline => self.scan_newlines_or_whitespace(start),
+            UnicodeClass::Newline => self.scan_whitespace_continue(start),
             UnicodeClass::Whitespace => {
-                // Back up and use whitespace scanner
-                self.pos -= char_len;
-                self.scan_whitespace(start);
+                // First char already consumed (self.pos += char_len above).
+                // Continue scanning any remaining whitespace.
+                self.scan_whitespace_continue(start);
             }
             UnicodeClass::Punctuation => {
                 if self.config.individual_punctuation {
@@ -1350,8 +1321,8 @@ mod tests {
 
     #[test]
     fn test_o200k_apostrophe_only() {
-        // O200K: standalone apostrophe is punctuation
-        assert_eq!(Pretok::O200K.split_to_vec("'hello'"), vec!["'", "hello", "'"]);
+        // O200K: apostrophe can prefix letters via [^\r\n\p{L}\p{N}]?\p{L}+
+        assert_eq!(Pretok::O200K.split_to_vec("'hello'"), vec!["'hello", "'"]);
     }
 
     // BERT tests

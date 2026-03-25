@@ -27,8 +27,10 @@ fn load_enwik8(max_bytes: usize) -> String {
 fn compare_model(tokiers_repo: &str, hf_model: &str, text: &str) -> (bool, Option<usize>) {
     let tok = Tokenizer::from_pretrained(tokiers_repo)
         .unwrap_or_else(|e| panic!("Failed to load tokie {tokiers_repo}: {e}"));
-    let hf = HfTokenizer::from_pretrained(hf_model, None)
+    let mut hf = HfTokenizer::from_pretrained(hf_model, None)
         .unwrap_or_else(|e| panic!("Failed to load HF {hf_model}: {e}"));
+    // Disable any default truncation so we compare the full output
+    let _ = hf.with_truncation(None);
 
     let tokie_ids = tok.encode(text, false).ids;
     let hf_enc = hf.encode(text, false)
