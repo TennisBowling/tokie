@@ -249,23 +249,23 @@ Every tokenizer below is tested against the original HuggingFace tokenizer on 1M
 | [Cohere embed english light v3](https://huggingface.co/tokiers/Cohere-embed-english-light-v3.0) | BPE | ✅ Pass |
 | [Cohere embed multilingual v3](https://huggingface.co/tokiers/Cohere-embed-multilingual-v3.0) | BPE | ❌ Fail |
 | [Cohere embed multilingual light v3](https://huggingface.co/tokiers/Cohere-embed-multilingual-light-v3.0) | BPE | ❌ Fail |
-| [Voyage 3](https://huggingface.co/tokiers/voyage-3) | BPE | ⚠️ Private |
-| [Voyage 3 large](https://huggingface.co/tokiers/voyage-3-large) | BPE | ⚠️ Private |
-| [Voyage 3 lite](https://huggingface.co/tokiers/voyage-3-lite) | BPE | ⚠️ Private |
-| [Voyage 3.5](https://huggingface.co/tokiers/voyage-3.5) | BPE | ⚠️ Private |
-| [Voyage 3.5 lite](https://huggingface.co/tokiers/voyage-3.5-lite) | BPE | ⚠️ Private |
-| [Voyage Code 2](https://huggingface.co/tokiers/voyage-code-2) | BPE | ⚠️ Private |
-| [Voyage Code 3](https://huggingface.co/tokiers/voyage-code-3) | BPE | ⚠️ Private |
-| [Voyage Finance 2](https://huggingface.co/tokiers/voyage-finance-2) | BPE | ⚠️ Private |
-| [Voyage Law 2](https://huggingface.co/tokiers/voyage-law-2) | BPE | ⚠️ Private |
-| [Voyage Multilingual 2](https://huggingface.co/tokiers/voyage-multilingual-2) | BPE | ⚠️ Private |
-| [Voyage Multimodal 3](https://huggingface.co/tokiers/voyage-multimodal-3) | BPE | ⚠️ Private |
+| [Voyage 3](https://huggingface.co/tokiers/voyage-3) | BPE | ⏳ Pending |
+| [Voyage 3 large](https://huggingface.co/tokiers/voyage-3-large) | BPE | ⏳ Pending |
+| [Voyage 3 lite](https://huggingface.co/tokiers/voyage-3-lite) | BPE | ⏳ Pending |
+| [Voyage 3.5](https://huggingface.co/tokiers/voyage-3.5) | BPE | ⏳ Pending |
+| [Voyage 3.5 lite](https://huggingface.co/tokiers/voyage-3.5-lite) | BPE | ⏳ Pending |
+| [Voyage Code 2](https://huggingface.co/tokiers/voyage-code-2) | BPE | ⏳ Pending |
+| [Voyage Code 3](https://huggingface.co/tokiers/voyage-code-3) | BPE | ⏳ Pending |
+| [Voyage Finance 2](https://huggingface.co/tokiers/voyage-finance-2) | BPE | ⏳ Pending |
+| [Voyage Law 2](https://huggingface.co/tokiers/voyage-law-2) | BPE | ⏳ Pending |
+| [Voyage Multilingual 2](https://huggingface.co/tokiers/voyage-multilingual-2) | BPE | ⏳ Pending |
+| [Voyage Multimodal 3](https://huggingface.co/tokiers/voyage-multimodal-3) | BPE | ⏳ Pending |
 | [T5 base](https://huggingface.co/tokiers/t5-base) | Unigram | ❌ Fail |
 | [XLM-RoBERTa](https://huggingface.co/tokiers/xlm-roberta-base) | BPE | ❌ Fail |
 
 </details>
 
-**Summary**: 29 pass, 18 fail, 2 gated (Llama), 11 untestable (private Voyage repos). Actively fixing remaining failures.
+**Summary**: 29 pass, 18 fail, 2 gated (Llama), 11 pending (Voyage — newly added to CI). Actively fixing remaining failures.
 
 ## Why tokie?
 

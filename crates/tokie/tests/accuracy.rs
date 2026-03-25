@@ -118,6 +118,19 @@ accuracy_test!(cohere_english_light_v3, "tokiers/Cohere-embed-english-light-v3.0
 accuracy_test!(cohere_multi_v3,         "tokiers/Cohere-embed-multilingual-v3.0",       "Cohere/Cohere-embed-multilingual-v3.0");
 accuracy_test!(cohere_multi_light_v3,   "tokiers/Cohere-embed-multilingual-light-v3.0", "Cohere/Cohere-embed-multilingual-light-v3.0");
 
+// Voyage (BPE)
+accuracy_test!(voyage_3,                "tokiers/voyage-3",                "voyageai/voyage-3");
+accuracy_test!(voyage_3_large,          "tokiers/voyage-3-large",          "voyageai/voyage-3-large");
+accuracy_test!(voyage_3_lite,           "tokiers/voyage-3-lite",           "voyageai/voyage-3-lite");
+accuracy_test!(voyage_3_5,              "tokiers/voyage-3.5",              "voyageai/voyage-3.5");
+accuracy_test!(voyage_3_5_lite,         "tokiers/voyage-3.5-lite",         "voyageai/voyage-3.5-lite");
+accuracy_test!(voyage_code_2,           "tokiers/voyage-code-2",           "voyageai/voyage-code-2");
+accuracy_test!(voyage_code_3,           "tokiers/voyage-code-3",           "voyageai/voyage-code-3");
+accuracy_test!(voyage_finance_2,        "tokiers/voyage-finance-2",        "voyageai/voyage-finance-2");
+accuracy_test!(voyage_law_2,            "tokiers/voyage-law-2",            "voyageai/voyage-law-2");
+accuracy_test!(voyage_multilingual_2,   "tokiers/voyage-multilingual-2",   "voyageai/voyage-multilingual-2");
+accuracy_test!(voyage_multimodal_3,     "tokiers/voyage-multimodal-3",     "voyageai/voyage-multimodal-3");
+
 // SentencePiece / Unigram
 accuracy_test!(t5_base,                 "tokiers/t5-base",              "google-t5/t5-base");
 accuracy_test!(xlm_roberta_base,        "tokiers/xlm-roberta-base",     "FacebookAI/xlm-roberta-base");
