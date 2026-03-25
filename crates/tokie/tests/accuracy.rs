@@ -4,6 +4,8 @@
 //!
 //! Requires network access and benches/data/enwik8 (1MB used).
 
+#![cfg(feature = "hf")]
+
 use std::path::Path;
 
 use tokenizers::Tokenizer as HfTokenizer;
@@ -119,3 +121,42 @@ accuracy_test!(cohere_multi_light_v3,   "tokiers/Cohere-embed-multilingual-light
 // SentencePiece / Unigram
 accuracy_test!(t5_base,                 "tokiers/t5-base",              "google-t5/t5-base");
 accuracy_test!(xlm_roberta_base,        "tokiers/xlm-roberta-base",     "FacebookAI/xlm-roberta-base");
+
+// ============================================================================
+// tiktoken models (CL100K, O200K) — compared against tiktoken-rs
+// ============================================================================
+
+/// Compare tokie against tiktoken-rs.
+fn compare_tiktoken(tokiers_repo: &str, tiktoken_model: &str, text: &str) -> (bool, Option<usize>) {
+    let tok = Tokenizer::from_pretrained(tokiers_repo)
+        .unwrap_or_else(|e| panic!("Failed to load tokie {tokiers_repo}: {e}"));
+    let bpe = tiktoken_rs::get_bpe_from_model(tiktoken_model)
+        .unwrap_or_else(|e| panic!("Failed to load tiktoken {tiktoken_model}: {e}"));
+
+    let tokie_ids = tok.encode(text, false).ids;
+    let tiktoken_ids = bpe.encode_with_special_tokens(text);
+
+    if tokie_ids.as_slice() == tiktoken_ids.as_slice() {
+        (true, None)
+    } else {
+        let diff = tokie_ids.iter().zip(tiktoken_ids.iter())
+            .position(|(a, b)| a != b)
+            .unwrap_or(tokie_ids.len().min(tiktoken_ids.len()));
+        (false, Some(diff))
+    }
+}
+
+macro_rules! tiktoken_accuracy_test {
+    ($name:ident, $tokiers:expr, $tiktoken_model:expr) => {
+        #[test]
+        #[ignore]
+        fn $name() {
+            let text = load_enwik8(1_000_000);
+            let (pass, diff) = compare_tiktoken($tokiers, $tiktoken_model, &text);
+            assert!(pass, "Token mismatch at index {:?}", diff);
+        }
+    };
+}
+
+tiktoken_accuracy_test!(tiktoken_cl100k, "tokiers/cl100k", "gpt-4");
+tiktoken_accuracy_test!(tiktoken_o200k,  "tokiers/o200k",  "gpt-4o");
