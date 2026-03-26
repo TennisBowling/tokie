@@ -95,9 +95,9 @@ accuracy_test!(roberta_base,            "tokiers/roberta-base",           "Faceb
 accuracy_test!(phi_2,                   "tokiers/phi-2",                  "microsoft/phi-2");
 accuracy_test!(phi_3_mini,              "tokiers/Phi-3-mini-4k-instruct", "microsoft/Phi-3-mini-4k-instruct");
 accuracy_test!(modernbert_base,         "tokiers/ModernBERT-base",        "answerdotai/ModernBERT-base");
-accuracy_test!(codellama_7b,            "tokiers/CodeLlama-7b-hf",       "codellama/CodeLlama-7b-hf");
-accuracy_test!(llama_3_2_1b,            "tokiers/Llama-3.2-1B",          "meta-llama/Llama-3.2-1B");
-accuracy_test!(llama_4_scout,           "tokiers/Llama-4-Scout-17B-16E", "meta-llama/Llama-4-Scout-17B-16E");
+accuracy_test!(codellama_7b,            "tokiers/CodeLlama-7b-hf",       "tokiers/CodeLlama-7b-hf");
+accuracy_test!(llama_3_2_1b,            "tokiers/Llama-3.2-1B",          "tokiers/Llama-3.2-1B");
+accuracy_test!(llama_4_scout,           "tokiers/Llama-4-Scout-17B-16E", "tokiers/Llama-4-Scout-17B-16E");
 accuracy_test!(mistral_7b,              "tokiers/Mistral-7B-v0.1",       "mistralai/Mistral-7B-v0.1");
 accuracy_test!(mistral_nemo,            "tokiers/Mistral-Nemo-Base-2407","mistralai/Mistral-Nemo-Base-2407");
 accuracy_test!(mixtral_8x7b,            "tokiers/Mixtral-8x7B-v0.1",    "mistralai/Mixtral-8x7B-v0.1");
@@ -138,8 +138,8 @@ accuracy_test!(xlm_roberta_base,        "tokiers/xlm-roberta-base",     "Faceboo
 // New models
 accuracy_test!(deepseek_v3,             "tokiers/DeepSeek-V3",                      "deepseek-ai/DeepSeek-V3");
 accuracy_test!(deepseek_r1,             "tokiers/DeepSeek-R1",                      "deepseek-ai/DeepSeek-R1");
-accuracy_test!(gemma_2_2b,              "tokiers/gemma-2-2b",                       "google/gemma-2-2b");
-accuracy_test!(gemma_3_4b_it,           "tokiers/gemma-3-4b-it",                    "google/gemma-3-4b-it");
+accuracy_test!(gemma_2_2b,              "tokiers/gemma-2-2b",                       "tokiers/gemma-2-2b");
+accuracy_test!(gemma_3_4b_it,           "tokiers/gemma-3-4b-it",                    "tokiers/gemma-3-4b-it");
 accuracy_test!(bge_m3,                  "tokiers/bge-m3",                           "BAAI/bge-m3");
 accuracy_test!(snowflake_arctic_v2,     "tokiers/snowflake-arctic-embed-l-v2.0",    "Snowflake/snowflake-arctic-embed-l-v2.0");
 accuracy_test!(nv_embed_v2,             "tokiers/NV-Embed-v2",                      "nvidia/NV-Embed-v2");
