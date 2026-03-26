@@ -146,6 +146,13 @@ accuracy_test!(nv_embed_v2,             "tokiers/NV-Embed-v2",                  
 accuracy_test!(smollm2_135m,            "tokiers/SmolLM2-135M",                     "HuggingFaceTB/SmolLM2-135M");
 accuracy_test!(stablelm_2_1_6b,         "tokiers/stablelm-2-1_6b",                  "stabilityai/stablelm-2-1_6b");
 
+// Qwen3 / Qwen3.5
+accuracy_test!(qwen3_0_6b,              "tokiers/Qwen3-0.6B",                       "Qwen/Qwen3-0.6B");
+accuracy_test!(qwen3_8b,                "tokiers/Qwen3-8B",                         "Qwen/Qwen3-8B");
+accuracy_test!(qwen3_coder_30b,         "tokiers/Qwen3-Coder-30B-A3B-Instruct",     "Qwen/Qwen3-Coder-30B-A3B-Instruct");
+accuracy_test!(qwen3_5_0_8b,            "tokiers/Qwen3.5-0.8B",                     "Qwen/Qwen3.5-0.8B");
+accuracy_test!(qwen3_5_4b,              "tokiers/Qwen3.5-4B",                       "Qwen/Qwen3.5-4B");
+
 // ============================================================================
 // tiktoken models (CL100K, O200K) — compared against tiktoken-rs
 // ============================================================================

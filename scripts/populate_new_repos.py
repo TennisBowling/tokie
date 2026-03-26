@@ -60,6 +60,20 @@ NEW_REPOS = {
     "NV-Embed-v2": "nvidia/NV-Embed-v2",
     "SmolLM2-135M": "HuggingFaceTB/SmolLM2-135M",
     "stablelm-2-1_6b": "stabilityai/stablelm-2-1_6b",
+    # Qwen3 / Qwen3.5
+    "Qwen3-0.6B": "Qwen/Qwen3-0.6B",
+    "Qwen3-1.7B": "Qwen/Qwen3-1.7B",
+    "Qwen3-4B": "Qwen/Qwen3-4B",
+    "Qwen3-8B": "Qwen/Qwen3-8B",
+    "Qwen3-14B": "Qwen/Qwen3-14B",
+    "Qwen3-32B": "Qwen/Qwen3-32B",
+    "Qwen3-Coder-30B-A3B-Instruct": "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+    "Qwen3.5-0.8B": "Qwen/Qwen3.5-0.8B",
+    "Qwen3.5-2B": "Qwen/Qwen3.5-2B",
+    "Qwen3.5-4B": "Qwen/Qwen3.5-4B",
+    "Qwen3.5-9B": "Qwen/Qwen3.5-9B",
+    "Qwen3.5-27B": "Qwen/Qwen3.5-27B",
+    "Qwen3.5-35B-A3B": "Qwen/Qwen3.5-35B-A3B",
 }
 
 # Files to try downloading from the original repo

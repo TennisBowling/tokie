@@ -20,28 +20,25 @@ fn main() {
     eprintln!("Testing on {:.1} MB of enwik8\n", text.len() as f64 / 1_000_000.0);
 
     let models: Vec<(&str, &str)> = vec![
-        // New models to test
-        ("DeepSeek-V3", "deepseek-ai/DeepSeek-V3"),
-        ("DeepSeek-R1", "deepseek-ai/DeepSeek-R1"),
+        // Qwen3 / Qwen3.5
+        ("Qwen3-0.6B", "Qwen/Qwen3-0.6B"),
+        ("Qwen3-8B", "Qwen/Qwen3-8B"),
+        ("Qwen3-Coder-30B", "Qwen/Qwen3-Coder-30B-A3B-Instruct"),
+        ("Qwen3.5-0.8B", "Qwen/Qwen3.5-0.8B"),
+        ("Qwen3.5-4B", "Qwen/Qwen3.5-4B"),
+        ("Qwen3.5-27B", "Qwen/Qwen3.5-27B"),
+        // Recent models
+        ("DeepSeek-V3", "tokiers/DeepSeek-V3"),
+        ("DeepSeek-R1", "tokiers/DeepSeek-R1"),
         ("Gemma-3-4B", "google/gemma-3-4b-it"),
-        ("Gemma-2-2B", "google/gemma-2-2b"),
-        ("bge-m3", "BAAI/bge-m3"),
-        ("Snowflake Arctic v2", "Snowflake/snowflake-arctic-embed-l-v2.0"),
-        ("NV-Embed-v2", "nvidia/NV-Embed-v2"),
-        ("SmolLM2-135M", "HuggingFaceTB/SmolLM2-135M"),
-        ("StableLM-2-1.6B", "stabilityai/stablelm-2-1_6b"),
+        ("SmolLM2-135M", "tokiers/SmolLM2-135M"),
         // Regression check
-        ("XLM-RoBERTa", "tokiers/xlm-roberta-base"),
-        ("T5", "tokiers/t5-base"),
         ("BERT", "tokiers/bert-base-uncased"),
         ("GPT-2", "tokiers/gpt2"),
         ("Llama-3.2", "tokiers/Llama-3.2-1B"),
-        ("Phi-2", "tokiers/phi-2"),
-        ("ModernBERT", "tokiers/ModernBERT-base"),
+        ("Qwen2-7B", "tokiers/Qwen2-7B"),
+        ("XLM-RoBERTa", "tokiers/xlm-roberta-base"),
         ("Voyage-code-2", "tokiers/voyage-code-2"),
-        ("Cohere-multi-v3", "tokiers/Cohere-embed-multilingual-v3.0"),
-        ("Jina-v3", "tokiers/jina-embeddings-v3"),
-        ("deepset-mxbai", "tokiers/deepset-mxbai-embed-de-large-v1"),
     ];
 
     let mut pass = 0;
@@ -67,6 +64,10 @@ fn main() {
         } else {
             let d = tokie_ids.iter().zip(hf_ids.iter()).position(|(t,h)| t!=h).unwrap_or(0);
             eprintln!("❌ FAIL (tokie={}, hf={}, diff@{})", tokie_ids.len(), hf_ids.len(), d);
+            let start = d.saturating_sub(3);
+            let end = (d + 5).min(tokie_ids.len()).min(hf_ids.len());
+            eprintln!("  tokie[{}..{}]: {:?}", start, end, &tokie_ids[start..end]);
+            eprintln!("  hf   [{}..{}]: {:?}", start, end, &hf_ids[start..end]);
             fail += 1;
         }
     }

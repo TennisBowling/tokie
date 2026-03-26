@@ -198,7 +198,7 @@ Loading a tokenizer from `tokenizer.json` requires JSON parsing, vocabulary cons
 Every tokenizer below is tested against the original HuggingFace tokenizer on 1MB of [enwik8](https://mattmahoney.net/dc/textdata.html) (~300K tokens) in [CI](../../actions/workflows/tokenizer-accuracy.yml). **Pass** = every token matches.
 
 <details>
-<summary><b>View full accuracy table (70 models)</b></summary>
+<summary><b>View full accuracy table (75 models)</b></summary>
 
 | Model | Type | Status |
 |-------|------|--------|
@@ -224,6 +224,11 @@ Every tokenizer below is tested against the original HuggingFace tokenizer on 1M
 | [Qwen3 Embed 0.6B](https://huggingface.co/tokiers/Qwen3-Embedding-0.6B) | BPE | ✅ Pass |
 | [Qwen3 Embed 4B](https://huggingface.co/tokiers/Qwen3-Embedding-4B) | BPE | ✅ Pass |
 | [Qwen3 Embed 8B](https://huggingface.co/tokiers/Qwen3-Embedding-8B) | BPE | ✅ Pass |
+| [Qwen3 0.6B](https://huggingface.co/tokiers/Qwen3-0.6B) | BPE | ✅ Pass |
+| [Qwen3 8B](https://huggingface.co/tokiers/Qwen3-8B) | BPE | ✅ Pass |
+| [Qwen3 Coder 30B](https://huggingface.co/tokiers/Qwen3-Coder-30B-A3B-Instruct) | BPE | ✅ Pass |
+| [Qwen3.5 0.8B](https://huggingface.co/tokiers/Qwen3.5-0.8B) | BPE | ✅ Pass |
+| [Qwen3.5 4B](https://huggingface.co/tokiers/Qwen3.5-4B) | BPE | ✅ Pass |
 | [SmolLM2 135M](https://huggingface.co/tokiers/SmolLM2-135M) | BPE | ✅ Pass |
 | [StableLM 2 1.6B](https://huggingface.co/tokiers/stablelm-2-1_6b) | BPE | ✅ Pass |
 | [Nomic Embed v1](https://huggingface.co/tokiers/nomic-embed-text-v1) | WordPiece | ✅ Pass |
@@ -274,7 +279,7 @@ Every tokenizer below is tested against the original HuggingFace tokenizer on 1M
 
 </details>
 
-**Summary**: 70 pass, 0 fail out of 70 tested. Every tokenizer produces identical output to HuggingFace.
+**Summary**: 75 pass, 0 fail out of 75 tested. Every tokenizer produces identical output to HuggingFace.
 
 ## Why tokie?
 

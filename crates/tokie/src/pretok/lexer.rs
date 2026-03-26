@@ -270,6 +270,39 @@ impl Pretok {
         punct_prefix_ascii_only: false,
     };
 
+    /// Qwen3.5 compatible configuration.
+    ///
+    /// Used by: Qwen3.5 (all sizes)
+    ///
+    /// Single-digit numbers with combining marks in letter runs:
+    /// - `[\p{L}\p{M}]+` instead of `\p{L}+` (Thai, Arabic combining marks stay with letters)
+    /// - Single digits: `12345` → `["1", "2", "3", "4", "5"]`
+    /// - Case-insensitive contractions
+    pub const QWEN35: Self = Self {
+        // Letter handling
+        letter_prefix: LetterPrefix::NonNewlineNonAlnum,
+        letter_scanning: LetterScanning::Simple,
+        // Contraction handling
+        contraction_position: ContractionPosition::Standalone,
+        case_insensitive_contractions: true,
+        // Number handling
+        max_number_digits: 1, // Single digits
+        space_prefix_numbers: false,
+        keep_alphanumeric_together: false,
+        // Punctuation handling
+        individual_punctuation: false,
+        punct_trailing_newlines: true,
+        punct_trailing_slash: false,
+        // Whitespace handling
+        include_leading_space: true,
+        add_prefix_space: false,
+        newline_lookahead: false,
+        newline_anchored_whitespace: true,
+        include_marks_in_letters: true,
+        no_backtrack_before_digit: false,
+        punct_prefix_ascii_only: false,
+    };
+
     /// DeepSeek compatible configuration.
     ///
     /// Used by: DeepSeek-V3, DeepSeek-R1

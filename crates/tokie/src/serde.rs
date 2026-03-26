@@ -59,6 +59,7 @@ impl PretokType {
             5 => Some(Self::Voyage),
             6 => Some(Self::DeepSeek),
             7 => Some(Self::Gpt2Digits),
+            8 => Some(Self::Qwen35),
             _ => None,
         }
     }

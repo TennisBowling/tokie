@@ -517,9 +517,16 @@ fn detect_pretokenizer_type(data: &serde_json::Value) -> PretokType {
                                     return PretokType::O200k;
                                 }
 
-                                // DeepSeek uses [\p{L}\p{M}]+ to include combining marks
+                                // Patterns with [\p{L}\p{M}]+ include combining marks
                                 if pattern.contains("[\\p{L}\\p{M}]+") {
-                                    return PretokType::DeepSeek;
+                                    // DeepSeek: multi-stage splits, no contractions in main pattern,
+                                    // digit groups \p{N}{1,3}
+                                    // Qwen3.5: single split, has contractions, single digits \p{N}
+                                    if pattern.contains("\\p{N}{") {
+                                        return PretokType::DeepSeek;
+                                    }
+                                    // Single-digit pattern with marks = Voyage + marks (Qwen3.5)
+                                    return PretokType::Qwen35;
                                 }
 
                                 // Simple \p{L}+ pattern = CL100K style (no CamelCase split)
