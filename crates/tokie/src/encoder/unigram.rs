@@ -60,6 +60,10 @@ pub struct UnigramEncoder {
 
     /// Maps byte sequence -> token ID for early exit.
     token_cache: FoldHashMap<Vec<u8>, TokenId>,
+
+    /// Whether the model has <0xXX> byte fallback tokens.
+    /// When false, <unk> gets a heavy penalty in Viterbi to prefer real tokens.
+    has_byte_fallback: bool,
 }
 
 /// Maximum token length to cache for early exit lookup.
@@ -124,6 +128,8 @@ impl UnigramEncoder {
             }
         }
 
+        let has_byte_fallback = byte_tokens.iter().any(|&t| t != u32::MAX);
+
         let encoder = Self {
             matcher,
             scores,
@@ -132,6 +138,7 @@ impl UnigramEncoder {
             token_lengths,
             vocab_size: vocab.len(),
             token_cache,
+            has_byte_fallback,
         };
 
         (encoder, token_bytes)
@@ -156,6 +163,8 @@ impl UnigramEncoder {
             }
         }
 
+        let has_byte_fallback = byte_tokens.iter().any(|&t| t != u32::MAX);
+
         Self {
             matcher,
             scores,
@@ -164,6 +173,7 @@ impl UnigramEncoder {
             token_lengths,
             vocab_size,
             token_cache,
+            has_byte_fallback,
         }
     }
 
@@ -264,10 +274,19 @@ impl UnigramEncoder {
         let mut backptr: Vec<(TokenId, usize)> = vec![(0, 0); n + 1];
         best_score[0] = 0.0;
 
-        // Use the actual <unk> token score from the model.
-        // For T5, <unk> has score 0.0, so Viterbi prefers <unk> over low-scoring tokens.
-        // Using a hardcoded -100.0 would change this behavior and produce different results.
-        let unk_penalty = self.scores[self.unk_token as usize] as f64;
+        // Determine <unk> penalty for Viterbi scoring.
+        // - Models WITH byte fallback (T5, XLM-R): use the actual <unk> score from the model.
+        //   T5's <unk> has score 0.0, meaning Viterbi correctly prefers <unk> over very
+        //   low-scoring tokens, matching SentencePiece behavior.
+        // - Models WITHOUT byte fallback (deepset-mxbai, Jina v3): use a heavy penalty.
+        //   Without byte fallback, a 0.0 <unk> score makes <unk> "free", causing Viterbi
+        //   to prefer short-token + <unk> over longer real tokens (e.g., "▁أ" + <unk>
+        //   beats "▁أبو" because -9.7 + 0.0 > -12.6).
+        let unk_penalty = if self.has_byte_fallback {
+            self.scores[self.unk_token as usize] as f64
+        } else {
+            -100.0
+        };
 
         // OPTIMIZATION: Group matches by start position using SmallVec
         // Most positions have few matches, so SmallVec avoids heap allocation
