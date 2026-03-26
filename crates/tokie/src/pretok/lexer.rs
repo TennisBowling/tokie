@@ -1011,7 +1011,9 @@ impl PretokIter<'_> {
             // No newline found: fall through to lookahead
         }
 
-        // \s+(?!\S) pattern: back up by 1 if non-whitespace follows
+        // \s+(?!\S) pattern: greedily match whitespace, backtrack one character at a time
+        // until the character after the match is NOT \S (i.e., is whitespace or end of string).
+        // This handles both GPT-2 (\s+(?!\S)|\s) and CL100K (\s+(?!\S)|\s+) patterns.
         let consumed = self.pos - start;
         if consumed > 1 && self.pos < len {
             let next_b = unsafe { *bytes.get_unchecked(self.pos) };
@@ -1026,7 +1028,16 @@ impl PretokIter<'_> {
                     c.is_whitespace()
                 });
             if !is_next_ws {
-                self.pos -= 1;
+                // Back up by one character (not one byte) — find the start of the
+                // last character in the consumed whitespace run.
+                let mut back = self.pos - 1;
+                while back > start && (unsafe { *bytes.get_unchecked(back) } & 0xC0) == 0x80 {
+                    back -= 1; // skip UTF-8 continuation bytes
+                }
+                // Only back up if we'd still have at least one character
+                if back > start {
+                    self.pos = back;
+                }
             }
         }
     }
@@ -1079,7 +1090,31 @@ impl PretokIter<'_> {
                             self.pos += 1;
                         }
                     }
-                    UnicodeClass::Whitespace | UnicodeClass::Newline => {
+                    UnicodeClass::Whitespace => {
+                        // In CL100K/Qwen regex, non-newline whitespace can prefix
+                        // letters via [^\r\n\p{L}\p{N}]?\p{L}+. If \u{3000} is
+                        // followed by a letter, emit space alone so \u{3000} starts
+                        // a new chunk as a letter prefix.
+                        if self.config.letter_prefix == LetterPrefix::NonNewlineNonAlnum {
+                            let after = self.pos + 1 + char_len;
+                            if after < self.len {
+                                let ab = unsafe { *bytes.get_unchecked(after) };
+                                let has_letter = is_ascii_letter(ab)
+                                    || (ab >= 0x80 && {
+                                        let (ac, _) = decode_utf8(unsafe {
+                                            bytes.get_unchecked(after..)
+                                        });
+                                        is_unicode_letter(ac)
+                                    });
+                                if has_letter {
+                                    self.pos += 1; // just the space
+                                    return;
+                                }
+                            }
+                        }
+                        self.scan_whitespace(start);
+                    }
+                    UnicodeClass::Newline => {
                         self.scan_whitespace(start);
                     }
                     UnicodeClass::CJK | UnicodeClass::Punctuation | UnicodeClass::Other | UnicodeClass::Letter => {
@@ -1135,6 +1170,14 @@ impl PretokIter<'_> {
             UnicodeClass::Number => self.scan_numbers(1),
             UnicodeClass::Newline => self.scan_whitespace_continue(start),
             UnicodeClass::Whitespace => {
+                // In CL100K/Qwen/Llama regex, [^\r\n\p{L}\p{N}]?\p{L}+ matches non-newline
+                // whitespace as a letter prefix (the class excludes \r\n but not \s).
+                // So \u{3000}a → one chunk, not two.
+                if self.config.letter_prefix == LetterPrefix::NonNewlineNonAlnum
+                    && self.try_scan_prefix_letters(0)
+                {
+                    return;
+                }
                 // First char already consumed (self.pos += char_len above).
                 // Continue scanning any remaining whitespace.
                 self.scan_whitespace_continue(start);
@@ -1448,5 +1491,28 @@ mod tests {
         // CL100K: tabs can prefix letters
         assert_eq!(Pretok::CL100K.split_to_vec("\ttabs"), vec!["\ttabs"]);
         assert_eq!(Pretok::CL100K.split_to_vec("\t\ttabs\tand"), vec!["\t", "\ttabs", "\tand"]);
+    }
+
+    // \u{3000} (ideographic space) tests — it's whitespace but matches [^\r\n\p{L}\p{N}]
+    // so CL100K regex treats it as a valid letter prefix
+    #[test]
+    fn test_cl100k_ideographic_space() {
+        // Alone
+        assert_eq!(Pretok::CL100K.split_to_vec("\u{3000}"), vec!["\u{3000}"]);
+        // As letter prefix
+        assert_eq!(Pretok::CL100K.split_to_vec("\u{3000}a"), vec!["\u{3000}a"]);
+        assert_eq!(Pretok::CL100K.split_to_vec("\u{3000}abc"), vec!["\u{3000}abc"]);
+        assert_eq!(Pretok::CL100K.split_to_vec("\u{3000}("), vec!["\u{3000}", "("]);
+        // After letter
+        assert_eq!(Pretok::CL100K.split_to_vec("a\u{3000}"), vec!["a", "\u{3000}"]);
+        assert_eq!(Pretok::CL100K.split_to_vec("abc\u{3000}def"), vec!["abc", "\u{3000}def"]);
+        assert_eq!(Pretok::CL100K.split_to_vec("Hello\u{3000}World"), vec!["Hello", "\u{3000}World"]);
+        // Space + ideographic space + letter: space alone, then \u{3000} prefixes letter
+        assert_eq!(Pretok::CL100K.split_to_vec(" \u{3000}a"), vec![" ", "\u{3000}a"]);
+        // Two ideographic spaces + letter: first alone, second prefixes letter
+        assert_eq!(Pretok::CL100K.split_to_vec("\u{3000}\u{3000}a"), vec!["\u{3000}", "\u{3000}a"]);
+        // Whitespace-only runs (no letter follows)
+        assert_eq!(Pretok::CL100K.split_to_vec(" \u{3000}"), vec![" \u{3000}"]);
+        assert_eq!(Pretok::CL100K.split_to_vec("\u{3000}\u{3000}\u{3000}"), vec!["\u{3000}\u{3000}\u{3000}"]);
     }
 }

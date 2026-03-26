@@ -203,22 +203,22 @@ Every tokenizer below is tested against the original HuggingFace tokenizer on 1M
 | Model | Type | Status |
 |-------|------|--------|
 | [GPT-2](https://huggingface.co/tokiers/gpt2) | BPE | ✅ Pass |
-| [cl100k](https://huggingface.co/tokiers/cl100k) | BPE | ❌ Fail (vs tiktoken-rs) |
-| [o200k](https://huggingface.co/tokiers/o200k) | BPE | ❌ Fail (vs tiktoken-rs) |
+| [cl100k](https://huggingface.co/tokiers/cl100k) | BPE | ✅ Pass (vs tiktoken-rs) |
+| [o200k](https://huggingface.co/tokiers/o200k) | BPE | ✅ Pass (vs tiktoken-rs) |
 | [RoBERTa](https://huggingface.co/tokiers/roberta-base) | BPE | ✅ Pass |
 | [Phi-2](https://huggingface.co/tokiers/phi-2) | BPE | ❌ Fail |
 | [Phi-3 Mini](https://huggingface.co/tokiers/Phi-3-mini-4k-instruct) | BPE | ✅ Pass |
 | [ModernBERT](https://huggingface.co/tokiers/ModernBERT-base) | BPE | ❌ Fail |
 | [CodeLlama 7B](https://huggingface.co/tokiers/CodeLlama-7b-hf) | BPE | ✅ Pass |
-| [Llama 3.2 1B](https://huggingface.co/tokiers/Llama-3.2-1B) | BPE | ⚠️ Gated |
-| [Llama 4 Scout](https://huggingface.co/tokiers/Llama-4-Scout-17B-16E) | BPE | ⚠️ Gated |
+| [Llama 3.2 1B](https://huggingface.co/tokiers/Llama-3.2-1B) | BPE | ✅ Pass |
+| [Llama 4 Scout](https://huggingface.co/tokiers/Llama-4-Scout-17B-16E) | BPE | ✅ Pass |
 | [Mistral 7B](https://huggingface.co/tokiers/Mistral-7B-v0.1) | BPE | ✅ Pass |
-| [Mistral Nemo](https://huggingface.co/tokiers/Mistral-Nemo-Base-2407) | BPE | ❌ Fail |
+| [Mistral Nemo](https://huggingface.co/tokiers/Mistral-Nemo-Base-2407) | BPE | ✅ Pass |
 | [Mixtral 8x7B](https://huggingface.co/tokiers/Mixtral-8x7B-v0.1) | BPE | ✅ Pass |
-| [Qwen2 7B](https://huggingface.co/tokiers/Qwen2-7B) | BPE | ❌ Fail |
-| [Qwen3 Embed 0.6B](https://huggingface.co/tokiers/Qwen3-Embedding-0.6B) | BPE | ❌ Fail |
-| [Qwen3 Embed 4B](https://huggingface.co/tokiers/Qwen3-Embedding-4B) | BPE | ❌ Fail |
-| [Qwen3 Embed 8B](https://huggingface.co/tokiers/Qwen3-Embedding-8B) | BPE | ❌ Fail |
+| [Qwen2 7B](https://huggingface.co/tokiers/Qwen2-7B) | BPE | ✅ Pass |
+| [Qwen3 Embed 0.6B](https://huggingface.co/tokiers/Qwen3-Embedding-0.6B) | BPE | ✅ Pass |
+| [Qwen3 Embed 4B](https://huggingface.co/tokiers/Qwen3-Embedding-4B) | BPE | ✅ Pass |
+| [Qwen3 Embed 8B](https://huggingface.co/tokiers/Qwen3-Embedding-8B) | BPE | ✅ Pass |
 | [Nomic Embed v1](https://huggingface.co/tokiers/nomic-embed-text-v1) | WordPiece | ✅ Pass |
 | [BERT base](https://huggingface.co/tokiers/bert-base-uncased) | WordPiece | ✅ Pass |
 | [all-MiniLM-L6-v2](https://huggingface.co/tokiers/all-MiniLM-L6-v2) | WordPiece | ✅ Pass |
@@ -234,7 +234,7 @@ Every tokenizer below is tested against the original HuggingFace tokenizer on 1M
 | [GTE base](https://huggingface.co/tokiers/gte-base) | WordPiece | ✅ Pass |
 | [GTE large](https://huggingface.co/tokiers/gte-large) | WordPiece | ✅ Pass |
 | [GTE small](https://huggingface.co/tokiers/gte-small) | WordPiece | ✅ Pass |
-| [GTE Qwen2 7B](https://huggingface.co/tokiers/gte-Qwen2-7B-instruct) | BPE | ❌ Fail |
+| [GTE Qwen2 7B](https://huggingface.co/tokiers/gte-Qwen2-7B-instruct) | BPE | ✅ Pass |
 | [MS MARCO MiniLM L-4](https://huggingface.co/tokiers/ms-marco-MiniLM-L-4-v2) | WordPiece | ✅ Pass |
 | [MS MARCO MiniLM L-6](https://huggingface.co/tokiers/ms-marco-MiniLM-L-6-v2) | WordPiece | ✅ Pass |
 | [mxbai embed large v1](https://huggingface.co/tokiers/mxbai-embed-large-v1) | WordPiece | ✅ Pass |
@@ -242,30 +242,30 @@ Every tokenizer below is tested against the original HuggingFace tokenizer on 1M
 | [mxbai embed xsmall v1](https://huggingface.co/tokiers/mxbai-embed-xsmall-v1) | WordPiece | ✅ Pass |
 | [deepset mxbai embed de large](https://huggingface.co/tokiers/deepset-mxbai-embed-de-large-v1) | WordPiece | ❌ Fail |
 | [Jina v2 base en](https://huggingface.co/tokiers/jina-embeddings-v2-base-en) | BPE | ✅ Pass |
-| [Jina v2 base code](https://huggingface.co/tokiers/jina-embeddings-v2-base-code) | BPE | ❌ Fail |
-| [Jina v3](https://huggingface.co/tokiers/jina-embeddings-v3) | BPE | ❌ Fail |
-| [Jina v4](https://huggingface.co/tokiers/jina-embeddings-v4) | BPE | ❌ Fail |
+| [Jina v2 base code](https://huggingface.co/tokiers/jina-embeddings-v2-base-code) | BPE | ✅ Pass |
+| [Jina v3](https://huggingface.co/tokiers/jina-embeddings-v3) | Unigram | ❌ Fail |
+| [Jina v4](https://huggingface.co/tokiers/jina-embeddings-v4) | BPE | ✅ Pass |
 | [Cohere embed english v3](https://huggingface.co/tokiers/Cohere-embed-english-v3.0) | BPE | ✅ Pass |
 | [Cohere embed english light v3](https://huggingface.co/tokiers/Cohere-embed-english-light-v3.0) | BPE | ✅ Pass |
-| [Cohere embed multilingual v3](https://huggingface.co/tokiers/Cohere-embed-multilingual-v3.0) | BPE | ❌ Fail |
-| [Cohere embed multilingual light v3](https://huggingface.co/tokiers/Cohere-embed-multilingual-light-v3.0) | BPE | ❌ Fail |
-| [Voyage 3](https://huggingface.co/tokiers/voyage-3) | BPE | ⏳ Pending |
-| [Voyage 3 large](https://huggingface.co/tokiers/voyage-3-large) | BPE | ⏳ Pending |
-| [Voyage 3 lite](https://huggingface.co/tokiers/voyage-3-lite) | BPE | ⏳ Pending |
-| [Voyage 3.5](https://huggingface.co/tokiers/voyage-3.5) | BPE | ⏳ Pending |
-| [Voyage 3.5 lite](https://huggingface.co/tokiers/voyage-3.5-lite) | BPE | ⏳ Pending |
-| [Voyage Code 2](https://huggingface.co/tokiers/voyage-code-2) | BPE | ⏳ Pending |
-| [Voyage Code 3](https://huggingface.co/tokiers/voyage-code-3) | BPE | ⏳ Pending |
-| [Voyage Finance 2](https://huggingface.co/tokiers/voyage-finance-2) | BPE | ⏳ Pending |
-| [Voyage Law 2](https://huggingface.co/tokiers/voyage-law-2) | BPE | ⏳ Pending |
-| [Voyage Multilingual 2](https://huggingface.co/tokiers/voyage-multilingual-2) | BPE | ⏳ Pending |
-| [Voyage Multimodal 3](https://huggingface.co/tokiers/voyage-multimodal-3) | BPE | ⏳ Pending |
+| [Cohere embed multilingual v3](https://huggingface.co/tokiers/Cohere-embed-multilingual-v3.0) | Unigram | ❌ Fail |
+| [Cohere embed multilingual light v3](https://huggingface.co/tokiers/Cohere-embed-multilingual-light-v3.0) | Unigram | ❌ Fail |
+| [Voyage 3](https://huggingface.co/tokiers/voyage-3) | BPE | ✅ Pass |
+| [Voyage 3 large](https://huggingface.co/tokiers/voyage-3-large) | BPE | ✅ Pass |
+| [Voyage 3 lite](https://huggingface.co/tokiers/voyage-3-lite) | BPE | ✅ Pass |
+| [Voyage 3.5](https://huggingface.co/tokiers/voyage-3.5) | BPE | ✅ Pass |
+| [Voyage 3.5 lite](https://huggingface.co/tokiers/voyage-3.5-lite) | BPE | ✅ Pass |
+| [Voyage Code 2](https://huggingface.co/tokiers/voyage-code-2) | BPE | ❌ Fail |
+| [Voyage Code 3](https://huggingface.co/tokiers/voyage-code-3) | BPE | ✅ Pass |
+| [Voyage Finance 2](https://huggingface.co/tokiers/voyage-finance-2) | BPE | ✅ Pass |
+| [Voyage Law 2](https://huggingface.co/tokiers/voyage-law-2) | BPE | ❌ Fail |
+| [Voyage Multilingual 2](https://huggingface.co/tokiers/voyage-multilingual-2) | BPE | ✅ Pass |
+| [Voyage Multimodal 3](https://huggingface.co/tokiers/voyage-multimodal-3) | BPE | ✅ Pass |
 | [T5 base](https://huggingface.co/tokiers/t5-base) | Unigram | ❌ Fail |
-| [XLM-RoBERTa](https://huggingface.co/tokiers/xlm-roberta-base) | BPE | ❌ Fail |
+| [XLM-RoBERTa](https://huggingface.co/tokiers/xlm-roberta-base) | Unigram | ❌ Fail |
 
 </details>
 
-**Summary**: 29 pass, 18 fail, 2 gated (Llama), 11 pending (Voyage — newly added to CI). Actively fixing remaining failures.
+**Summary**: 50 pass, 10 fail out of 60 tested. Remaining failures are in SentencePiece/Unigram models and two ByteLevel-only models (Phi-2, ModernBERT).
 
 ## Why tokie?
 

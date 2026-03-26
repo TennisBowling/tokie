@@ -99,6 +99,13 @@ fn main() {
         ("Jina-v3", "tokiers/jina-embeddings-v3", "jinaai/jina-embeddings-v3"),
         ("T5", "tokiers/t5-base", "google-t5/t5-base"),
         ("XLM-R", "tokiers/xlm-roberta-base", "FacebookAI/xlm-roberta-base"),
+        ("Voyage-3", "tokiers/voyage-3", "voyageai/voyage-3"),
+        ("Voyage-3-large", "tokiers/voyage-3-large", "voyageai/voyage-3-large"),
+        ("Voyage-3-lite", "tokiers/voyage-3-lite", "voyageai/voyage-3-lite"),
+        ("Voyage-code-2", "tokiers/voyage-code-2", "voyageai/voyage-code-2"),
+        ("Voyage-code-3", "tokiers/voyage-code-3", "voyageai/voyage-code-3"),
+        ("Voyage-law-2", "tokiers/voyage-law-2", "voyageai/voyage-law-2"),
+        ("Voyage-multimodal-3", "tokiers/voyage-multimodal-3", "voyageai/voyage-multimodal-3"),
     ];
 
     for (name, tokiers, hf) in &models {

@@ -100,3 +100,7 @@ required-features = ["hf"]
 [[example]]
 name = "speed_regression"
 required-features = ["hf"]
+
+[[example]]
+name = "regenerate_from_json"
+required-features = ["hf"]

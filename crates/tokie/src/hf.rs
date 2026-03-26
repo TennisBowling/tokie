@@ -303,32 +303,12 @@ fn load_byte_level_bpe(
     // occupy low IDs, e.g., ModernBERT has 245 base tokens instead of 256)
     let num_base_tokens = detect_num_base_tokens(vocab_map, merges_arr);
 
-    // Build base tokens (byte tokens + any low-ID added/special tokens)
-    let base_tokens: Vec<Vec<u8>> = vocab
+    // Build full vocab with byte-level decoding (includes all vocab entries, not just
+    // merge-derived ones, so the Aho-Corasick automaton covers the entire vocabulary)
+    let full_vocab: Vec<(u32, Vec<u8>)> = vocab
         .iter()
-        .take(num_base_tokens)
-        .map(|(s, _)| decode_bytelevel_token(s))
+        .map(|(s, id)| (*id, decode_bytelevel_token(s)))
         .collect();
-
-    // Collect added/special tokens that may occupy IDs in the merge range
-    let added_tokens: Vec<(u32, Vec<u8>)> = data
-        .get("added_tokens")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|t| {
-                    let id = t.get("id")?.as_u64()? as u32;
-                    let content = t.get("content")?.as_str()?;
-                    // Only include if after base tokens (in the merge/post-merge range)
-                    if id >= num_base_tokens as u32 {
-                        Some((id, content.as_bytes().to_vec()))
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-        })
-        .unwrap_or_default();
 
     // Build merges with proper ID mapping
     // Handle both string format ("Ġ Ġ") and array format (["Ġ", "Ġ"])
@@ -356,17 +336,16 @@ fn load_byte_level_bpe(
 
     let (encoder, token_bytes) = match encoder_type {
         EncoderType::Backtracking | EncoderType::WordPiece | EncoderType::SentencePiece | EncoderType::Unigram => {
-            // For byte-level BPE, use Backtracking (SentencePiece/Unigram encoders are for vocab-defined)
-            let (enc, bytes) = BacktrackingBytePairEncoder::from_merges_with_added(
+            let (enc, bytes) = BacktrackingBytePairEncoder::from_vocab_and_merges(
+                &full_vocab,
                 &merges,
-                &base_tokens,
-                &added_tokens,
+                num_base_tokens,
             );
             (Encoder::Backtracking(enc), bytes)
         }
         EncoderType::Simple => {
             let (enc, bytes) =
-                BytePairEncoder::from_merges_with_added(&merges, &base_tokens, &added_tokens);
+                BytePairEncoder::from_vocab_and_merges(&full_vocab, &merges, num_base_tokens);
             (Encoder::Simple(enc), bytes)
         }
     };
