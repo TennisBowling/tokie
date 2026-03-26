@@ -41,7 +41,7 @@ pip install tokie
 
 ```toml
 [dependencies]
-tokie = { version = "0.0.5", features = ["hf"] }
+tokie = { version = "0.0.6", features = ["hf"] }
 ```
 
 ## Quick Start
@@ -150,23 +150,23 @@ tokenizer = tokie.Tokenizer.from_file("model.tkz")
 
 ## Benchmarks
 
-All benchmarks run on War and Peace (3.36 MB) on an Apple M3 Pro. tokie produces **identical output** to HuggingFace tokenizers — every token matches, every time.
+All benchmarks run on 1 MB of enwik8 on an Apple M3 Pro. tokie produces **identical output** to HuggingFace tokenizers — every token matches, every time.
 
 ### BPE Encoding (GPT-2, Llama, Mistral)
 
-For tiktoken-style BPE models (GPT-2, cl100k, o200k, Llama 3), tokie uses a backtracking encoder built on an Aho-Corasick automaton. Instead of iteratively merging byte pairs, it does a greedy longest-match in O(n) time, with backtracking only when adjacent tokens form invalid pairs. Combined with parallel chunking across all cores, this gives **298 MB/s** — 51x faster than HuggingFace and 21x faster than tiktoken.
+For tiktoken-style BPE models (GPT-2, cl100k, o200k, Llama 3), tokie uses a backtracking encoder built on an Aho-Corasick automaton. Instead of iteratively merging byte pairs, it does a greedy longest-match in O(n) time, with backtracking only when adjacent tokens form invalid pairs. Combined with parallel chunking across all cores, this gives **321 MB/s** — 58x faster than HuggingFace and 19-23x faster than tiktoken.
 
 ![BPE encoding speed](assets/benchmark.png)
 
 ### WordPiece (BERT, MiniLM, BGE, GTE)
 
-WordPiece tokenizers use a different algorithm — greedy longest-match prefix search over a vocabulary trie. tokie uses a pre-built Double-Array trie for O(n) lookup with excellent cache locality, combined with a custom BERT pretokenizer that avoids regex entirely. The result is **82x faster** than HuggingFace tokenizers on BERT, with identical output (737,710 tokens match exactly).
+WordPiece tokenizers use a different algorithm — greedy longest-match prefix search over a vocabulary trie. tokie uses a pre-built Double-Array trie for O(n) lookup with excellent cache locality, combined with a custom BERT pretokenizer that avoids regex entirely. The result is **79x faster** than HuggingFace tokenizers on BERT, with identical output.
 
 ![WordPiece encoding speed](assets/benchmark_wordpiece.png)
 
-### SentencePiece BPE (T5, XLM-R, Gemma)
+### SentencePiece BPE & Unigram (XLM-R, T5, Voyage)
 
-SentencePiece-style models use a different merge algorithm with non-topological rank orders. tokie uses a radix heap with O(1) amortized operations that exploits BPE's monotonic rank property. Text is chunked at metaspace boundaries using SIMD-accelerated splitting, then encoded in parallel. This gives **7.7x** faster throughput than HuggingFace tokenizers.
+SentencePiece-style models use a different merge algorithm with non-topological rank orders. tokie uses a radix heap with O(1) amortized operations that exploits BPE's monotonic rank property, with overflow support for models (like Voyage-code-2) that have non-monotonic merge orderings. Text is chunked at metaspace boundaries using SIMD-accelerated splitting, then encoded in parallel. This gives **4x** faster throughput than HuggingFace tokenizers.
 
 ![SentencePiece BPE speed](assets/benchmark_sentencepiece.png)
 
@@ -206,9 +206,9 @@ Every tokenizer below is tested against the original HuggingFace tokenizer on 1M
 | [cl100k](https://huggingface.co/tokiers/cl100k) | BPE | ✅ Pass (vs tiktoken-rs) |
 | [o200k](https://huggingface.co/tokiers/o200k) | BPE | ✅ Pass (vs tiktoken-rs) |
 | [RoBERTa](https://huggingface.co/tokiers/roberta-base) | BPE | ✅ Pass |
-| [Phi-2](https://huggingface.co/tokiers/phi-2) | BPE | ❌ Fail |
+| [Phi-2](https://huggingface.co/tokiers/phi-2) | BPE | ✅ Pass |
 | [Phi-3 Mini](https://huggingface.co/tokiers/Phi-3-mini-4k-instruct) | BPE | ✅ Pass |
-| [ModernBERT](https://huggingface.co/tokiers/ModernBERT-base) | BPE | ❌ Fail |
+| [ModernBERT](https://huggingface.co/tokiers/ModernBERT-base) | BPE | ✅ Pass |
 | [CodeLlama 7B](https://huggingface.co/tokiers/CodeLlama-7b-hf) | BPE | ✅ Pass |
 | [Llama 3.2 1B](https://huggingface.co/tokiers/Llama-3.2-1B) | BPE | ✅ Pass |
 | [Llama 4 Scout](https://huggingface.co/tokiers/Llama-4-Scout-17B-16E) | BPE | ✅ Pass |
@@ -254,18 +254,18 @@ Every tokenizer below is tested against the original HuggingFace tokenizer on 1M
 | [Voyage 3 lite](https://huggingface.co/tokiers/voyage-3-lite) | BPE | ✅ Pass |
 | [Voyage 3.5](https://huggingface.co/tokiers/voyage-3.5) | BPE | ✅ Pass |
 | [Voyage 3.5 lite](https://huggingface.co/tokiers/voyage-3.5-lite) | BPE | ✅ Pass |
-| [Voyage Code 2](https://huggingface.co/tokiers/voyage-code-2) | BPE | ❌ Fail |
+| [Voyage Code 2](https://huggingface.co/tokiers/voyage-code-2) | BPE | ✅ Pass |
 | [Voyage Code 3](https://huggingface.co/tokiers/voyage-code-3) | BPE | ✅ Pass |
 | [Voyage Finance 2](https://huggingface.co/tokiers/voyage-finance-2) | BPE | ✅ Pass |
-| [Voyage Law 2](https://huggingface.co/tokiers/voyage-law-2) | BPE | ❌ Fail |
+| [Voyage Law 2](https://huggingface.co/tokiers/voyage-law-2) | BPE | ✅ Pass |
 | [Voyage Multilingual 2](https://huggingface.co/tokiers/voyage-multilingual-2) | BPE | ✅ Pass |
 | [Voyage Multimodal 3](https://huggingface.co/tokiers/voyage-multimodal-3) | BPE | ✅ Pass |
-| [T5 base](https://huggingface.co/tokiers/t5-base) | Unigram | ❌ Fail |
-| [XLM-RoBERTa](https://huggingface.co/tokiers/xlm-roberta-base) | Unigram | ❌ Fail |
+| [T5 base](https://huggingface.co/tokiers/t5-base) | Unigram | ✅ Pass |
+| [XLM-RoBERTa](https://huggingface.co/tokiers/xlm-roberta-base) | SentencePiece BPE | ✅ Pass |
 
 </details>
 
-**Summary**: 50 pass, 10 fail out of 60 tested. Remaining failures are in SentencePiece/Unigram models and two ByteLevel-only models (Phi-2, ModernBERT).
+**Summary**: 56 pass, 4 fail out of 60 tested. Remaining failures are in a few SentencePiece/Unigram models (Jina v3, Cohere multilingual, deepset mxbai).
 
 ## Why tokie?
 
