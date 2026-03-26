@@ -909,9 +909,9 @@ checksum = "b5b646652bf6661599e1da8901b3b9522896f01e736bad5f723fe7a3a27f899d"
 
 [[package]]
 name = "libredox"
-version = "0.1.14"
+version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1744e39d1d6a9948f4f388969627434e31128196de472883b39f148769bfe30a"
+checksum = "7ddbf48fd451246b1f8c2610bd3b4ac0cc6e149d89832867093ab69a17194f08"
 dependencies = [
  "libc",
 ]
@@ -1687,7 +1687,7 @@ dependencies = [
 
 [[package]]
 name = "tokie"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "chunk",
  "crc32fast",
@@ -1708,7 +1708,7 @@ dependencies = [
 
 [[package]]
 name = "tokie-python"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "pyo3",
  "tokie",
@@ -1737,9 +1737,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-segmentation"
-version = "1.12.0"
+version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6ccf251212114b54433ec949fd6a7841275f9ada20dddd2f29e9ceea4501493"
+checksum = "da36089a805484bcccfffe0739803392c8298778a2d2f09febf76fac5ad9025b"
 
 [[package]]
 name = "unicode-width"
