@@ -38,6 +38,7 @@ pub enum PretokType {
     Bert = 4,
     Voyage = 5,
     DeepSeek = 6,
+    Gpt2Digits = 7,
 }
 
 impl PretokType {
@@ -51,6 +52,7 @@ impl PretokType {
             PretokType::Bert => Some(Pretok::BERT),
             PretokType::Voyage => Some(Pretok::VOYAGE),
             PretokType::DeepSeek => Some(Pretok::DEEPSEEK),
+            PretokType::Gpt2Digits => Some(Pretok::GPT2_DIGITS),
         }
     }
 }

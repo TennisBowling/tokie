@@ -498,6 +498,11 @@ fn detect_pretokenizer_type(data: &serde_json::Value) -> PretokType {
                     .any(|p| p["type"].as_str() == Some("ByteLevel"));
 
                 if has_byte_level {
+                    // Check for Digits pretokenizer (SmolLM2 style)
+                    let has_digits = pretokenizers
+                        .iter()
+                        .any(|p| p["type"].as_str() == Some("Digits"));
+
                     // Check for Split with regex pattern to determine exact type
                     for p in pretokenizers {
                         if p["type"].as_str() == Some("Split") {
@@ -531,6 +536,10 @@ fn detect_pretokenizer_type(data: &serde_json::Value) -> PretokType {
                         }
                     }
                     // Default ByteLevel sequence to GPT-2
+                    // If Digits pretokenizer is present, use GPT-2 with individual digit isolation
+                    if has_digits {
+                        return PretokType::Gpt2Digits;
+                    }
                     return PretokType::Gpt2;
                 }
             }

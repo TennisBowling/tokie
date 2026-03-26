@@ -237,6 +237,39 @@ impl Pretok {
         punct_prefix_ascii_only: false,
     };
 
+    /// GPT-2 with individual digit isolation.
+    ///
+    /// Used by: SmolLM2, models with Sequence[Digits, ByteLevel]
+    ///
+    /// Same as GPT-2 but with individual digit isolation:
+    /// - Each digit is a separate pretoken
+    /// - Space does not prefix digits
+    /// - No whitespace backtracking before digits
+    pub const GPT2_DIGITS: Self = Self {
+        // Letter handling
+        letter_prefix: LetterPrefix::SpaceOnly,
+        letter_scanning: LetterScanning::Simple,
+        // Contraction handling
+        contraction_position: ContractionPosition::Standalone,
+        case_insensitive_contractions: false,
+        // Number handling
+        max_number_digits: 1,
+        space_prefix_numbers: false,
+        keep_alphanumeric_together: false,
+        // Punctuation handling
+        individual_punctuation: false,
+        punct_trailing_newlines: false,
+        punct_trailing_slash: false,
+        // Whitespace handling
+        include_leading_space: true,
+        add_prefix_space: true,
+        newline_lookahead: true,
+        newline_anchored_whitespace: false,
+        include_marks_in_letters: false,
+        no_backtrack_before_digit: true,
+        punct_prefix_ascii_only: false,
+    };
+
     /// DeepSeek compatible configuration.
     ///
     /// Used by: DeepSeek-V3, DeepSeek-R1

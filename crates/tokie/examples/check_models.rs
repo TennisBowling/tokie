@@ -20,13 +20,16 @@ fn main() {
     eprintln!("Testing on {:.1} MB of enwik8\n", text.len() as f64 / 1_000_000.0);
 
     let models: Vec<(&str, &str)> = vec![
-        // New models
+        // New models to test
         ("DeepSeek-V3", "deepseek-ai/DeepSeek-V3"),
+        ("DeepSeek-R1", "deepseek-ai/DeepSeek-R1"),
         ("Gemma-3-4B", "google/gemma-3-4b-it"),
         ("Gemma-2-2B", "google/gemma-2-2b"),
         ("bge-m3", "BAAI/bge-m3"),
         ("Snowflake Arctic v2", "Snowflake/snowflake-arctic-embed-l-v2.0"),
         ("NV-Embed-v2", "nvidia/NV-Embed-v2"),
+        ("SmolLM2-135M", "HuggingFaceTB/SmolLM2-135M"),
+        ("StableLM-2-1.6B", "stabilityai/stablelm-2-1_6b"),
         // Regression check
         ("XLM-RoBERTa", "tokiers/xlm-roberta-base"),
         ("T5", "tokiers/t5-base"),
