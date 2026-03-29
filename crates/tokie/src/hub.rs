@@ -198,7 +198,7 @@ impl Tokenizer {
     }
 }
 
-/// Try to load non-special added tokens from tokenizer.json and set them on the tokenizer.
+/// Try to load added tokens from tokenizer.json and set them on the tokenizer.
 /// This is needed because .tkz format doesn't store added token info.
 /// Silently does nothing if tokenizer.json isn't available or has no added tokens.
 fn load_added_tokens_from_json(tokenizer: &mut Tokenizer, repo_api: &hf_hub::api::sync::ApiRepo) {
@@ -208,19 +208,28 @@ fn load_added_tokens_from_json(tokenizer: &mut Tokenizer, repo_api: &hf_hub::api
 
     let Some(added) = data["added_tokens"].as_array() else { return };
     let tokens: Vec<(crate::types::TokenId, Vec<u8>)> = added.iter().filter_map(|token| {
-        let special = token["special"].as_bool().unwrap_or(false);
-        if special { return None; }
         let id = token["id"].as_u64()? as crate::types::TokenId;
         let content = token["content"].as_str()?;
-        if content.len() >= 2 && content.bytes().all(|b| b == b' ' || b == b'\t') {
-            Some((id, content.as_bytes().to_vec()))
-        } else {
-            None
+        if content.len() < 2 {
+            return None;
         }
+        Some((id, content.as_bytes().to_vec()))
     }).collect();
 
     if !tokens.is_empty() {
         tokenizer.set_added_tokens(&tokens);
+    }
+
+    // Also load special token metadata
+    let special: Vec<(String, crate::types::TokenId)> = added.iter().filter_map(|token| {
+        let special = token["special"].as_bool().unwrap_or(false);
+        if !special { return None; }
+        let id = token["id"].as_u64()? as crate::types::TokenId;
+        let content = token["content"].as_str()?;
+        Some((content.to_string(), id))
+    }).collect();
+    if !special.is_empty() {
+        tokenizer.set_special_tokens(special);
     }
 }
 

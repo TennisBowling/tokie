@@ -58,7 +58,7 @@ impl PretokType {
             4 => Some(Self::Bert),
             5 => Some(Self::Voyage),
             6 => Some(Self::DeepSeek),
-            7 => Some(Self::Gpt2Digits),
+            7 => Some(Self::SmolLM),
             8 => Some(Self::Qwen35),
             _ => None,
         }
@@ -510,7 +510,7 @@ impl Tokenizer {
             EncoderType::Simple => {
                 // OPTIMIZED: Build lookups directly from decoder (single copy)
                 // Simple encoder doesn't use token_lengths, so we ignore it
-                let (byte_lut, token_cache, _) = build_token_lookups(&decoder_offsets, &decoder_data, vocab_size);
+                let (byte_lut, token_cache, _, _) = build_token_lookups(&decoder_offsets, &decoder_data, vocab_size);
                 let merges = deserialize_merges(merge_data)?;
 
                 let enc = BytePairEncoder::from_parts(
@@ -547,7 +547,7 @@ impl Tokenizer {
             }
             EncoderType::SentencePiece => {
                 // OPTIMIZED: Build lookups directly from decoder (single copy)
-                let (mut byte_lut, mut token_cache, token_lengths) = build_token_lookups(&decoder_offsets, &decoder_data, vocab_size);
+                let (mut byte_lut, mut token_cache, token_lengths, byte_tokens) = build_token_lookups(&decoder_offsets, &decoder_data, vocab_size);
                 let merges = deserialize_merges(merge_data)?;
 
                 // Fix byte_lut/token_cache for byte-fallback collisions.
@@ -559,9 +559,7 @@ impl Tokenizer {
                     &mut byte_lut,
                     &mut token_cache,
                     &merges,
-                    &decoder_offsets,
-                    &decoder_data,
-                    vocab_size,
+                    &byte_tokens,
                 );
 
                 let enc = SentencePieceBPE::from_parts(
@@ -631,15 +629,25 @@ fn serialize_vocab_decoder(decoder: &VocabDecoder) -> Vec<u8> {
 /// Maximum token length to cache for early exit lookup.
 const MAX_CACHED_TOKEN_LEN: usize = 16;
 
+/// ID range window for byte-fallback cluster detection.
+/// SentencePiece models place ~256 byte-fallback tokens in a contiguous ID range;
+/// 300 allows slack for gaps/special tokens within the range.
+const FALLBACK_CLUSTER_WINDOW: u32 = 300;
+
+/// Minimum single-byte tokens required to identify a byte-fallback cluster.
+/// 200 out of 256 possible bytes is a strong signal without requiring full coverage.
+const FALLBACK_CLUSTER_MIN_DENSITY: usize = 200;
+
 /// Build token lookups directly from decoder data (single copy, no intermediate Vec<Vec<u8>>).
-/// Returns: (byte_lut, token_cache, token_lengths)
+/// Returns: (byte_lut, token_cache, token_lengths, byte_tokens)
+/// `byte_tokens` groups single-byte token IDs by byte value for collision detection.
 fn build_token_lookups(
     decoder_offsets: &[u32],
     decoder_data: &[u8],
     vocab_size: usize,
-) -> ([TokenId; 256], FoldHashMap<Vec<u8>, TokenId>, Vec<u16>) {
-    // Build byte_lut array for single-byte tokens
+) -> ([TokenId; 256], FoldHashMap<Vec<u8>, TokenId>, Vec<u16>, [Vec<TokenId>; 256]) {
     let mut byte_lut = [u32::MAX; 256];
+    let mut byte_tokens: [Vec<TokenId>; 256] = std::array::from_fn(|_| Vec::new());
 
     // Pre-count short tokens for HashMap capacity
     let short_count: usize = (0..vocab_size)
@@ -652,7 +660,6 @@ fn build_token_lookups(
     let mut token_cache: FoldHashMap<Vec<u8>, TokenId> =
         FoldHashMap::with_capacity_and_hasher(short_count, Default::default());
 
-    // Build token_lengths in the same pass
     let mut token_lengths: Vec<u16> = Vec::with_capacity(vocab_size);
 
     for i in 0..vocab_size {
@@ -661,29 +668,23 @@ fn build_token_lookups(
         let bytes = &decoder_data[start..end];
         let len = bytes.len();
 
-        // Token length
         token_lengths.push(len as u16);
 
-        // Single-byte lookup (first-wins: prefer lower token ID, which is
-        // typically the non-byte-fallback token in SentencePiece models)
-        if len == 1 && byte_lut[bytes[0] as usize] == u32::MAX {
-            byte_lut[bytes[0] as usize] = i as TokenId;
-        }
-
-        // Short token lookup (single copy into HashMap)
-        // For single-byte tokens, use entry() to match byte_lut's first-wins
-        // behavior. This prevents byte fallback tokens (e.g., <0x0A> = id 227)
-        // from overwriting real tokens (e.g., \n = id 108) in models like Gemma.
-        if len <= MAX_CACHED_TOKEN_LEN {
-            if len == 1 {
-                token_cache.entry(bytes.to_vec()).or_insert(i as TokenId);
-            } else {
-                token_cache.insert(bytes.to_vec(), i as TokenId);
+        if len == 1 {
+            let byte_val = bytes[0] as usize;
+            byte_tokens[byte_val].push(i as TokenId);
+            // First-wins for byte_lut
+            if byte_lut[byte_val] == u32::MAX {
+                byte_lut[byte_val] = i as TokenId;
             }
+            // First-wins for token_cache
+            token_cache.entry(bytes.to_vec()).or_insert(i as TokenId);
+        } else if len <= MAX_CACHED_TOKEN_LEN {
+            token_cache.insert(bytes.to_vec(), i as TokenId);
         }
     }
 
-    (byte_lut, token_cache, token_lengths)
+    (byte_lut, token_cache, token_lengths, byte_tokens)
 }
 
 /// Fix byte_lut and token_cache for SentencePiece models with byte-fallback collisions.
@@ -704,31 +705,16 @@ fn fix_byte_fallback_collisions(
     byte_lut: &mut [TokenId; 256],
     token_cache: &mut FoldHashMap<Vec<u8>, TokenId>,
     merges: &[(TokenId, TokenId, TokenId)],
-    decoder_offsets: &[u32],
-    decoder_data: &[u8],
-    vocab_size: usize,
+    byte_tokens: &[Vec<TokenId>; 256],
 ) {
-    // Collect all single-byte tokens grouped by byte value
-    let mut byte_tokens: [Vec<TokenId>; 256] = std::array::from_fn(|_| Vec::new());
-    for i in 0..vocab_size {
-        let start = decoder_offsets[i] as usize;
-        let end = decoder_offsets[i + 1] as usize;
-        if end - start == 1 {
-            let byte_val = decoder_data[start] as usize;
-            byte_tokens[byte_val].push(i as TokenId);
-        }
-    }
-
     // Check if there are any collisions at all
-    let has_collisions = byte_tokens.iter().any(|ids| ids.len() > 1);
-    if !has_collisions {
+    if !byte_tokens.iter().any(|ids| ids.len() > 1) {
         return;
     }
 
-    // Detect byte-fallback range: find a set of ~256 single-byte tokens that
-    // collectively cover a wide range of byte values and form a roughly contiguous ID range.
-    // Strategy: collect all single-byte token IDs, find the densest cluster of ~256 tokens.
-    let mut all_single_byte: Vec<(TokenId, u8)> = Vec::new(); // (token_id, byte_value)
+    // Detect byte-fallback range: find a dense cluster of ~256 single-byte tokens
+    // in a contiguous ID range (SentencePiece places byte-fallback tokens together).
+    let mut all_single_byte: Vec<(TokenId, u8)> = Vec::new();
     for (byte_val, ids) in byte_tokens.iter().enumerate() {
         for &id in ids {
             all_single_byte.push((id, byte_val as u8));
@@ -736,29 +722,26 @@ fn fix_byte_fallback_collisions(
     }
     all_single_byte.sort_by_key(|(id, _)| *id);
 
-    // Find the byte-fallback range: a window of IDs where ~256 single-byte tokens are clustered
     let mut fallback_ids = foldhash::HashSet::default();
     if all_single_byte.len() >= 256 {
-        // Try to find a contiguous-ish range of ~256 tokens
         let mut best_start = 0;
         let mut best_density = 0usize;
-        for start_idx in 0..all_single_byte.len().saturating_sub(200) {
+        for start_idx in 0..all_single_byte.len().saturating_sub(FALLBACK_CLUSTER_MIN_DENSITY) {
             let start_id = all_single_byte[start_idx].0;
-            // Count how many tokens fall within a range of 300 IDs from start
             let count = all_single_byte[start_idx..]
                 .iter()
-                .take_while(|(id, _)| *id < start_id + 300)
+                .take_while(|(id, _)| *id < start_id + FALLBACK_CLUSTER_WINDOW)
                 .count();
-            if count > best_density && count >= 200 {
+            if count > best_density && count >= FALLBACK_CLUSTER_MIN_DENSITY {
                 best_density = count;
                 best_start = start_idx;
             }
         }
 
-        if best_density >= 200 {
+        if best_density >= FALLBACK_CLUSTER_MIN_DENSITY {
             let range_start_id = all_single_byte[best_start].0;
             for &(id, _) in &all_single_byte[best_start..] {
-                if id < range_start_id + 300 {
+                if id < range_start_id + FALLBACK_CLUSTER_WINDOW {
                     fallback_ids.insert(id);
                 } else {
                     break;
@@ -767,7 +750,7 @@ fn fix_byte_fallback_collisions(
         }
     }
 
-    // Also collect merge operands for tie-breaking
+    // Collect merge operands for tie-breaking
     let mut merge_operands = foldhash::HashSet::default();
     for &(left, right, _) in merges {
         merge_operands.insert(left);
@@ -775,12 +758,12 @@ fn fix_byte_fallback_collisions(
     }
 
     // For each byte with multiple tokens, pick the best one
+    // Priority: merge operand > non-fallback > fallback
     for (byte_val, ids) in byte_tokens.iter().enumerate() {
         if ids.len() <= 1 {
             continue;
         }
 
-        // Priority: merge operand > non-fallback > fallback
         let mut best = byte_lut[byte_val];
         for &id in ids {
             if merge_operands.contains(&id) && !merge_operands.contains(&best) {

@@ -1,36 +1,44 @@
-//! Regex-based pretokenizer for cl100k, o200k, and custom patterns.
+//! Regex-based pretokenizer for custom and fallback patterns.
 //!
-//! This module provides a regex-automata based pretokenizer that handles
-//! negative lookahead patterns by rewriting them as multiple patterns.
+//! Uses `regex-automata` for multi-pattern matching with lookahead simulation.
+//! Achieves ~146 MiB/s — use hand-coded iterators (Gpt2, Cl100k, etc.) for
+//! higher performance when available.
 //!
-//! Used as fallback for patterns without hand-coded lexers.
+//! Requires the `regex` feature: `pretokie = { version = "...", features = ["regex"] }`
 
-use regex_automata::{meta::Regex, util::captures::Captures, Anchored, Input};
+use regex_automata::{meta, util::captures::Captures, Anchored, Input};
 
 /// Regex-based pretokenizer.
 ///
-/// Achieves ~146 MiB/s on GPT-2 patterns. Use hand-coded lexers for
-/// higher performance when available.
-pub struct RegexPretok {
-    regex: Regex,
+/// Handles negative lookahead patterns by rewriting them as multiple patterns
+/// with a trailing-character trim.
+pub struct Regex {
+    inner: meta::Regex,
     lookahead: Vec<bool>,
 }
 
-impl RegexPretok {
+impl std::fmt::Debug for Regex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Regex")
+            .field("patterns", &self.inner.pattern_len())
+            .finish()
+    }
+}
+
+impl Regex {
     /// Create a new pretokenizer from patterns.
     ///
-    /// Each pattern is a tuple of (pattern_str, is_lookahead).
-    /// If is_lookahead is true, the last character of matches will be dropped.
-    pub fn new(patterns: &[(&str, bool)]) -> Result<Self, regex_automata::meta::BuildError> {
+    /// Each pattern is a tuple of `(pattern_str, is_lookahead)`.
+    /// If `is_lookahead` is true, the last character of matches will be dropped
+    /// (simulates negative lookahead like `\s+(?!\S)`).
+    pub fn new(patterns: &[(&str, bool)]) -> Result<Self, meta::BuildError> {
         let pats: Vec<&str> = patterns.iter().map(|(p, _)| *p).collect();
         let lookahead: Vec<bool> = patterns.iter().map(|(_, l)| *l).collect();
-        let regex = Regex::new_many(&pats)?;
-        Ok(Self { regex, lookahead })
+        let inner = meta::Regex::new_many(&pats)?;
+        Ok(Self { inner, lookahead })
     }
 
-    /// Create a cl100k (GPT-3.5/GPT-4) compatible pretokenizer.
-    ///
-    /// Original pattern includes case-insensitive contractions and number chunking.
+    /// Create a CL100K (GPT-3.5/GPT-4) compatible pretokenizer.
     pub fn cl100k() -> Self {
         Self::new(&[
             (r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+$", false),
@@ -39,7 +47,7 @@ impl RegexPretok {
         ]).expect("valid cl100k pattern")
     }
 
-    /// Create an o200k (GPT-4o) compatible pretokenizer.
+    /// Create an O200K (GPT-4o) compatible pretokenizer.
     pub fn o200k() -> Self {
         let pat1 = [
             r"[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]*[\p{Ll}\p{Lm}\p{Lo}\p{M}]+(?i:'s|'t|'re|'ve|'m|'ll|'d)?",
@@ -57,7 +65,7 @@ impl RegexPretok {
 
     /// Create a GPT-2 compatible pretokenizer (regex version).
     ///
-    /// Use [`Pretok::GPT2`](super::Pretok::GPT2) for better performance.
+    /// Prefer `pretokie::Gpt2` for ~3x better performance.
     pub fn gpt2() -> Self {
         Self::new(&[
             (
@@ -71,12 +79,12 @@ impl RegexPretok {
     }
 
     /// Split text into pre-tokens.
-    pub fn split<'a>(&'a self, text: &'a str) -> RegexPretokIter<'a> {
-        RegexPretokIter {
+    pub fn split<'a>(&'a self, text: &'a str) -> RegexIter<'a> {
+        RegexIter {
             pretokenizer: self,
             text,
             pos: 0,
-            caps: Captures::matches(self.regex.group_info().clone()),
+            caps: Captures::matches(self.inner.group_info().clone()),
         }
     }
 
@@ -86,15 +94,15 @@ impl RegexPretok {
     }
 }
 
-/// Iterator over pre-tokens from regex pretokenizer.
-pub struct RegexPretokIter<'a> {
-    pretokenizer: &'a RegexPretok,
+/// Iterator over pre-tokens from the regex pretokenizer.
+pub struct RegexIter<'a> {
+    pretokenizer: &'a Regex,
     text: &'a str,
     pos: usize,
     caps: Captures,
 }
 
-impl<'a> Iterator for RegexPretokIter<'a> {
+impl<'a> Iterator for RegexIter<'a> {
     type Item = &'a str;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -104,7 +112,7 @@ impl<'a> Iterator for RegexPretokIter<'a> {
 
         let input = Input::new(&self.text[self.pos..]).anchored(Anchored::Yes);
         self.caps.clear();
-        self.pretokenizer.regex.captures(input, &mut self.caps);
+        self.pretokenizer.inner.captures(input, &mut self.caps);
 
         let m = self.caps.get_match()?;
         let start = self.pos;
@@ -134,35 +142,28 @@ mod tests {
 
     #[test]
     fn test_cl100k_numbers() {
-        let pre = RegexPretok::cl100k();
-        // cl100k chunks numbers into groups of 1-3 digits
+        let pre = Regex::cl100k();
         let tokens: Vec<_> = pre.split("12345").collect();
         assert_eq!(tokens, vec!["123", "45"]);
     }
 
     #[test]
     fn test_gpt2_basic() {
-        let pre = RegexPretok::gpt2();
+        let pre = Regex::gpt2();
         let tokens: Vec<_> = pre.split("Hello world").collect();
         assert_eq!(tokens, vec!["Hello", " world"]);
     }
 
     #[test]
     fn test_gpt2_contractions() {
-        let pre = RegexPretok::gpt2();
+        let pre = Regex::gpt2();
         let tokens: Vec<_> = pre.split("How's it going?").collect();
         assert_eq!(tokens, vec!["How", "'s", " it", " going", "?"]);
     }
-}
-
-#[cfg(test)]
-mod o200k_tests {
-    use super::*;
 
     #[test]
     fn test_o200k_camelcase() {
-        let o200k = RegexPretok::o200k();
-
+        let o200k = Regex::o200k();
         assert_eq!(o200k.split("CamelCase").collect::<Vec<_>>(), vec!["Camel", "Case"]);
         assert_eq!(o200k.split("JSONParser").collect::<Vec<_>>(), vec!["JSONParser"]);
         assert_eq!(o200k.split("parseJSON").collect::<Vec<_>>(), vec!["parse", "JSON"]);

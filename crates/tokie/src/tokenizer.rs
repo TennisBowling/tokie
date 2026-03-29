@@ -19,7 +19,7 @@ use crate::hf::{self, JsonLoadError};
 use crate::normalizer::Normalizer;
 use crate::padding::{Encoding, PaddingParams, TruncationParams, pad_batch, pad_encoding, truncate_ids, truncate_pair};
 use crate::postprocessor::PostProcessor;
-use crate::pretok::{Pretok, PretokType};
+use crate::pretok::{PretokType, Pretokenizer};
 use crate::types::TokenId;
 
 /// Backward-compatible alias for [`Encoding`].
@@ -48,7 +48,7 @@ fn num_cpus() -> usize {
 pub struct Tokenizer {
     encoder: Encoder,
     decoder: Decoder,
-    pretokenizer: Option<Pretok>,
+    pretokenizer: Option<Pretokenizer>,
     pretokenizer_type: PretokType,
     normalizer: Normalizer,
     post_processor: PostProcessor,
@@ -59,10 +59,12 @@ pub struct Tokenizer {
     /// Runtime config, not serialized.
     truncation: Option<TruncationParams>,
     reverse_vocab: OnceLock<FoldHashMap<String, TokenId>>,
-    /// DAAC matcher for non-special added tokens (e.g., multi-space/tab sequences).
+    /// DAAC matcher for added tokens (special and non-special).
     /// HF scans for these BEFORE pretokenization, splitting text at their boundaries.
-    /// None when there are no non-special added tokens.
     added_tokens_matcher: Option<DoubleArrayAhoCorasick>,
+    /// Special token metadata: maps token string -> token ID.
+    /// Populated from the `added_tokens` array in tokenizer.json where `special: true`.
+    special_tokens: Vec<(String, TokenId)>,
 }
 
 impl Tokenizer {
@@ -73,7 +75,7 @@ impl Tokenizer {
         normalizer: Normalizer,
         post_processor: PostProcessor,
     ) -> Self {
-        let pretokenizer = pretokenizer_type.to_pretok();
+        let pretokenizer = pretokenizer_type.to_pretokenizer();
         Self {
             encoder,
             decoder,
@@ -86,11 +88,11 @@ impl Tokenizer {
             truncation: None,
             reverse_vocab: OnceLock::new(),
             added_tokens_matcher: None,
+            special_tokens: Vec::new(),
         }
     }
 
-    /// Set added tokens matcher for non-special added tokens.
-    /// These are matched BEFORE pretokenization, like HuggingFace does.
+    /// Set added tokens matcher. These are matched BEFORE pretokenization, like HuggingFace does.
     pub fn set_added_tokens(&mut self, tokens: &[(TokenId, Vec<u8>)]) {
         if tokens.is_empty() {
             return;
@@ -105,6 +107,16 @@ impl Tokenizer {
         self.added_tokens_matcher = Some(trie.compile());
     }
 
+    /// Set special token metadata (token string -> ID mapping).
+    pub fn set_special_tokens(&mut self, tokens: Vec<(String, TokenId)>) {
+        self.special_tokens = tokens;
+    }
+
+    /// Get special token metadata as (token_string, token_id) pairs.
+    pub fn special_tokens(&self) -> &[(String, TokenId)] {
+        &self.special_tokens
+    }
+
     pub fn pretokenizer_type(&self) -> PretokType { self.pretokenizer_type }
     pub fn normalizer(&self) -> Normalizer { self.normalizer }
     pub fn post_processor(&self) -> &PostProcessor { &self.post_processor }
@@ -112,7 +124,8 @@ impl Tokenizer {
     pub fn decoder_type(&self) -> DecoderType { self.decoder.decoder_type() }
     pub fn encoder(&self) -> &Encoder { &self.encoder }
     pub fn decoder(&self) -> &Decoder { &self.decoder }
-    pub fn pretokenizer(&self) -> Option<&Pretok> { self.pretokenizer.as_ref() }
+    pub fn pretokenizer(&self) -> Option<&Pretokenizer> { self.pretokenizer.as_ref() }
+    pub fn set_pretokenizer(&mut self, pretok: Option<Pretokenizer>) { self.pretokenizer = pretok; }
     pub fn vocab_size(&self) -> usize { self.decoder.vocab_size() }
     pub fn pad_token_id(&self) -> Option<TokenId> { self.pad_token_id }
     pub fn padding(&self) -> Option<&PaddingParams> { self.padding.as_ref() }
@@ -408,10 +421,10 @@ impl Tokenizer {
         }
 
         if text.len() >= Self::PARALLEL_CHUNK_THRESHOLD {
-            self.encode_parallel(text, self.pretokenizer.as_ref())
+            self.encode_parallel(text)
         } else {
             let normalized = self.normalizer.normalize(text);
-            self.encode_sequential(normalized.as_ref(), self.pretokenizer.as_ref().unwrap())
+            self.encode_sequential(normalized.as_ref())
         }
     }
 
@@ -504,15 +517,15 @@ impl Tokenizer {
     }
 
     #[inline]
-    fn encode_sequential(&self, text: &str, pretok: &Pretok) -> Vec<TokenId> {
-        pretok
+    fn encode_sequential(&self, text: &str) -> Vec<TokenId> {
+        self.pretokenizer.as_ref().unwrap()
             .split(text)
             .flat_map(|piece| self.encoder.encode(piece.as_bytes()))
             .collect()
     }
 
     /// Split text into chunks at whitespace, encode each in parallel.
-    fn encode_parallel(&self, text: &str, pretok: Option<&Pretok>) -> Vec<TokenId> {
+    fn encode_parallel(&self, text: &str) -> Vec<TokenId> {
         let bytes = text.as_bytes();
         let cpus = num_cpus();
         let target_size = bytes.len() / cpus;
@@ -525,14 +538,12 @@ impl Tokenizer {
 
         if chunks.len() <= 1 {
             let normalized = self.normalizer.normalize(text);
-            return match pretok {
-                Some(p) => self.encode_sequential(normalized.as_ref(), p),
-                None => self.encoder.encode(normalized.as_ref().as_bytes()),
-            };
+            return self.encode_sequential(normalized.as_ref());
         }
 
         let encoder = &self.encoder;
         let normalizer = &self.normalizer;
+        let pretok = self.pretokenizer.as_ref().unwrap();
         let results: Vec<Vec<TokenId>> = thread::scope(|s| {
             chunks
                 .iter()
@@ -541,12 +552,9 @@ impl Tokenizer {
                         // SAFETY: Input was valid UTF-8, split at ASCII whitespace.
                         let chunk_str = unsafe { std::str::from_utf8_unchecked(chunk_bytes) };
                         let normalized = normalizer.normalize(chunk_str);
-                        match pretok {
-                            Some(p) => p.split(normalized.as_ref())
-                                .flat_map(|piece| encoder.encode(piece.as_bytes()))
-                                .collect(),
-                            None => encoder.encode(normalized.as_ref().as_bytes()),
-                        }
+                        pretok.split(normalized.as_ref())
+                            .flat_map(|piece| encoder.encode(piece.as_bytes()))
+                            .collect()
                     })
                 })
                 .collect::<Vec<_>>()

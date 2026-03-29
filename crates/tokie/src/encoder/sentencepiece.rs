@@ -482,16 +482,14 @@ impl SentencePieceBPE {
         // In Gemma: real \n (id 108) preferred over <0x0A> (id 227).
         // In NV-Embed: real 'e' (id 28706) preferred over <0x65> (id 104).
         let mut byte_lut = [u32::MAX; 256];
-        let mut byte_lut_is_fallback = [true; 256];
         for (id, bytes) in vocab {
             if bytes.len() == 1 {
                 let byte_val = bytes[0] as usize;
                 let is_fallback = byte_fallback_ids.contains(id);
                 if byte_lut[byte_val] == u32::MAX
-                    || (!is_fallback && byte_lut_is_fallback[byte_val])
+                    || (!is_fallback && byte_fallback_ids.contains(&byte_lut[byte_val]))
                 {
                     byte_lut[byte_val] = *id;
-                    byte_lut_is_fallback[byte_val] = is_fallback;
                 }
             }
         }

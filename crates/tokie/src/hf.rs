@@ -6,7 +6,7 @@ use crate::encoder::{BacktrackingBytePairEncoder, BytePairEncoder, Encoder, Enco
 use crate::decoder::Decoder;
 use crate::normalizer::Normalizer;
 use crate::postprocessor::PostProcessor;
-use crate::pretok::PretokType;
+use crate::pretok::{PretokType, Pretokenizer};
 use crate::tokenizer::Tokenizer;
 use crate::types::TokenId;
 
@@ -86,8 +86,10 @@ pub fn from_json_with_encoder(
 ) -> Result<Tokenizer, JsonLoadError> {
     let json_str = std::fs::read_to_string(path)?;
     let data: serde_json::Value = serde_json::from_str(&json_str)?;
-    let pretokenizer_type = detect_pretokenizer_type(&data);
-    load_from_json_value_with_encoder(&data, pretokenizer_type, encoder_type)
+    let detected = detect_pretokenizer_type(&data);
+    let mut tok = load_from_json_value_with_encoder(&data, detected.pretok_type, encoder_type)?;
+    apply_regex_fallback(&mut tok, &detected);
+    Ok(tok)
 }
 
 /// Load a tokenizer with both encoder type and pretokenizer type specified.
@@ -104,8 +106,10 @@ pub fn from_json_with_options(
 /// Load a tokenizer from a HuggingFace tokenizer.json string.
 pub fn from_json_str(json_str: &str) -> Result<Tokenizer, JsonLoadError> {
     let data: serde_json::Value = serde_json::from_str(json_str)?;
-    let pretokenizer_type = detect_pretokenizer_type(&data);
-    load_from_json_value(&data, pretokenizer_type)
+    let detected = detect_pretokenizer_type(&data);
+    let mut tok = load_from_json_value(&data, detected.pretok_type)?;
+    apply_regex_fallback(&mut tok, &detected);
+    Ok(tok)
 }
 
 /// Load a tokenizer from JSON string with a specific pretokenizer type.
@@ -337,9 +341,7 @@ fn load_byte_level_bpe(
     let (encoder, token_bytes) = match encoder_type {
         EncoderType::Backtracking | EncoderType::WordPiece | EncoderType::SentencePiece | EncoderType::Unigram => {
             let (enc, bytes) = BacktrackingBytePairEncoder::from_vocab_and_merges(
-                &full_vocab,
-                &merges,
-                num_base_tokens,
+                &full_vocab, &merges, num_base_tokens,
             );
             (Encoder::Backtracking(enc), bytes)
         }
@@ -481,14 +483,50 @@ fn parse_byte_fallback_token(s: &str) -> Option<u8> {
 /// - Vocabulary size (~100K = cl100k, ~200K = o200k)
 ///
 /// For edge cases, use `from_json_with_pretokenizer` to explicitly specify.
-fn detect_pretokenizer_type(data: &serde_json::Value) -> PretokType {
+/// Apply regex fallback pretokenizer if the pattern was unrecognized.
+fn apply_regex_fallback(tok: &mut Tokenizer, detected: &DetectedPretokenizer) {
+    if tok.pretokenizer().is_none() {
+        if let Some(pattern) = &detected.fallback_pattern {
+            // Handle the common \s+(?!\S) negative lookahead pattern:
+            // Split into \s+\s (with lookahead trim) and \s+ (without)
+            let patterns = if pattern.contains("(?!\\S)") || pattern.contains("(?!\\s)") {
+                let main = pattern.replace("\\s+(?!\\S)", "\\s+$")
+                                  .replace("\\s+(?!\\s)", "\\s+$");
+                vec![
+                    (main, false),
+                    ("\\s+\\s".to_string(), true),
+                    ("\\s+".to_string(), false),
+                ]
+            } else {
+                vec![(pattern.clone(), false)]
+            };
+
+            let pat_refs: Vec<(&str, bool)> = patterns.iter()
+                .map(|(p, l)| (p.as_str(), *l))
+                .collect();
+
+            if let Ok(regex) = pretokie::Regex::new(&pat_refs) {
+                tok.set_pretokenizer(Some(Pretokenizer::from_regex(regex)));
+            }
+        }
+    }
+}
+
+/// Result of pretokenizer detection from JSON.
+struct DetectedPretokenizer {
+    pretok_type: PretokType,
+    /// Raw regex pattern for fallback when pretok_type is None but a pattern was found.
+    fallback_pattern: Option<String>,
+}
+
+fn detect_pretokenizer_type(data: &serde_json::Value) -> DetectedPretokenizer {
     let pre_tokenizer = &data["pre_tokenizer"];
 
     // Check pre_tokenizer type first
     if let Some(typ) = pre_tokenizer["type"].as_str() {
         // ByteLevel pre-tokenizer (GPT-2 style)
         if typ == "ByteLevel" {
-            return PretokType::Gpt2;
+            return DetectedPretokenizer { pretok_type: PretokType::Gpt2, fallback_pattern: None };
         }
 
         // Sequence pretokenizers - check for ByteLevel inside
@@ -505,10 +543,15 @@ fn detect_pretokenizer_type(data: &serde_json::Value) -> PretokType {
                         .iter()
                         .any(|p| p["type"].as_str() == Some("Digits"));
 
+                    // Collect all Split regex patterns for potential fallback
+                    let mut split_patterns: Vec<String> = Vec::new();
+
                     // Check for Split with regex pattern to determine exact type
                     for p in pretokenizers {
                         if p["type"].as_str() == Some("Split") {
                             if let Some(pattern) = p["pattern"]["Regex"].as_str() {
+                                split_patterns.push(pattern.to_string());
+
                                 // O200K has case-aware letter patterns like [\p{Lu}\p{Lt}...]
                                 // This splits CamelCase words
                                 let is_case_aware = pattern.contains("\\p{Lu}")
@@ -516,7 +559,7 @@ fn detect_pretokenizer_type(data: &serde_json::Value) -> PretokType {
                                     || pattern.contains("\\p{Ll}");
 
                                 if is_case_aware {
-                                    return PretokType::O200k;
+                                    return DetectedPretokenizer { pretok_type: PretokType::O200k, fallback_pattern: None };
                                 }
 
                                 // Patterns with [\p{L}\p{M}]+ include combining marks
@@ -525,10 +568,10 @@ fn detect_pretokenizer_type(data: &serde_json::Value) -> PretokType {
                                     // digit groups \p{N}{1,3}
                                     // Qwen3.5: single split, has contractions, single digits \p{N}
                                     if pattern.contains("\\p{N}{") {
-                                        return PretokType::DeepSeek;
+                                        return DetectedPretokenizer { pretok_type: PretokType::DeepSeek, fallback_pattern: None };
                                     }
                                     // Single-digit pattern with marks = Voyage + marks (Qwen3.5)
-                                    return PretokType::Qwen35;
+                                    return DetectedPretokenizer { pretok_type: PretokType::Qwen35, fallback_pattern: None };
                                 }
 
                                 // Simple \p{L}+ pattern = CL100K style (no CamelCase split)
@@ -537,9 +580,9 @@ fn detect_pretokenizer_type(data: &serde_json::Value) -> PretokType {
                                     // Check number chunking: \p{N}{1,3} = CL100K, \p{N}| = Voyage
                                     // Voyage uses single digits, CL100K uses groups of 3
                                     if pattern.contains("\\p{N}|") && !pattern.contains("\\p{N}{") {
-                                        return PretokType::Voyage;
+                                        return DetectedPretokenizer { pretok_type: PretokType::Voyage, fallback_pattern: None };
                                     }
-                                    return PretokType::Cl100k;
+                                    return DetectedPretokenizer { pretok_type: PretokType::Cl100k, fallback_pattern: None };
                                 }
                             }
                         }
@@ -547,9 +590,32 @@ fn detect_pretokenizer_type(data: &serde_json::Value) -> PretokType {
                     // Default ByteLevel sequence to GPT-2
                     // If Digits pretokenizer is present, use GPT-2 with individual digit isolation
                     if has_digits {
-                        return PretokType::Gpt2Digits;
+                        return DetectedPretokenizer { pretok_type: PretokType::SmolLM, fallback_pattern: None };
                     }
-                    return PretokType::Gpt2;
+                    // If we found Split patterns but couldn't classify them, return as fallback
+                    if !split_patterns.is_empty() {
+                        return DetectedPretokenizer {
+                            pretok_type: PretokType::Gpt2, // default ByteLevel
+                            fallback_pattern: Some(split_patterns.join("|")),
+                        };
+                    }
+                    return DetectedPretokenizer { pretok_type: PretokType::Gpt2, fallback_pattern: None };
+                }
+
+                // No ByteLevel but has Split patterns — try regex fallback
+                let mut split_patterns: Vec<String> = Vec::new();
+                for p in pretokenizers {
+                    if p["type"].as_str() == Some("Split") {
+                        if let Some(pattern) = p["pattern"]["Regex"].as_str() {
+                            split_patterns.push(pattern.to_string());
+                        }
+                    }
+                }
+                if !split_patterns.is_empty() {
+                    return DetectedPretokenizer {
+                        pretok_type: PretokType::None,
+                        fallback_pattern: Some(split_patterns.join("|")),
+                    };
                 }
             }
         }
@@ -557,12 +623,22 @@ fn detect_pretokenizer_type(data: &serde_json::Value) -> PretokType {
         // Metaspace pre-tokenizer (SentencePiece style - Mistral, Llama 2)
         // These work with PretokType::None + Metaspace normalizer
         if typ == "Metaspace" {
-            return PretokType::None;
+            return DetectedPretokenizer { pretok_type: PretokType::None, fallback_pattern: None };
+        }
+
+        // Single Split pretokenizer with regex
+        if typ == "Split" {
+            if let Some(pattern) = pre_tokenizer["pattern"]["Regex"].as_str() {
+                return DetectedPretokenizer {
+                    pretok_type: PretokType::None,
+                    fallback_pattern: Some(pattern.to_string()),
+                };
+            }
         }
     }
 
-    // Unknown - return None, BPE will still work but without pretokenization
-    PretokType::None
+    // Unknown - return None
+    DetectedPretokenizer { pretok_type: PretokType::None, fallback_pattern: None }
 }
 
 /// Detect the normalizer from HuggingFace JSON.
@@ -1092,41 +1168,50 @@ fn extract_pad_token_id(data: &serde_json::Value) -> Option<TokenId> {
     None
 }
 
-/// Extract non-special added tokens from HuggingFace tokenizer.json.
+/// Extract added tokens from HuggingFace tokenizer.json.
 ///
-/// These are tokens like multi-space/tab sequences that HF matches BEFORE
-/// pretokenization. Returns (token_id, bytes) pairs.
+/// HuggingFace tokenizers match ALL added tokens (both special and non-special)
+/// before pretokenization. This ensures tokens like `<|im_start|>`, `<think>`,
+/// and multi-space sequences are recognized as single tokens.
+/// Returns (token_id, bytes) pairs.
 fn extract_added_tokens(data: &serde_json::Value) -> Vec<(TokenId, Vec<u8>)> {
     let Some(added) = data["added_tokens"].as_array() else {
         return Vec::new();
     };
 
     added.iter().filter_map(|token| {
-        let special = token["special"].as_bool().unwrap_or(false);
-        if special {
-            return None;
-        }
         let id = token["id"].as_u64()? as TokenId;
         let content = token["content"].as_str()?;
-        // Include added tokens that need pre-splitting:
-        // 1. Multi-char whitespace patterns (spaces, tabs) like "   " or "\t\t"
-        // 2. Control char sequences like "\n", "\n\n", etc. (Gemma has \n through
-        //    \n×20 as added tokens that must be matched before BPE encoding)
-        let all_whitespace_or_control = !content.is_empty()
-            && content.bytes().all(|b| b == b' ' || b == b'\t' || b < 0x20);
-        if all_whitespace_or_control {
-            Some((id, content.as_bytes().to_vec()))
-        } else {
-            None
+        if content.is_empty() {
+            return None;
         }
+        // Skip single-byte tokens — they're already in the BPE vocab and
+        // matching them in the DAAC would add overhead with no benefit.
+        if content.len() == 1 {
+            return None;
+        }
+        Some((id, content.as_bytes().to_vec()))
     }).collect()
 }
 
-/// Set up added tokens on a tokenizer from HF JSON data.
+/// Set up added tokens and special token metadata on a tokenizer from HF JSON data.
 fn setup_added_tokens(tokenizer: &mut Tokenizer, data: &serde_json::Value) {
     let added = extract_added_tokens(data);
     if !added.is_empty() {
         tokenizer.set_added_tokens(&added);
+    }
+    // Extract special token metadata (string -> ID mapping)
+    if let Some(added_arr) = data["added_tokens"].as_array() {
+        let special: Vec<(String, TokenId)> = added_arr.iter().filter_map(|token| {
+            let special = token["special"].as_bool().unwrap_or(false);
+            if !special { return None; }
+            let id = token["id"].as_u64()? as TokenId;
+            let content = token["content"].as_str()?;
+            Some((content.to_string(), id))
+        }).collect();
+        if !special.is_empty() {
+            tokenizer.set_special_tokens(special);
+        }
     }
 }
 

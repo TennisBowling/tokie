@@ -12,7 +12,7 @@
 [![docs.rs](https://img.shields.io/docsrs/tokie)](https://docs.rs/tokie)
 [![GitHub Stars](https://img.shields.io/github/stars/chonkie-inc/tokie)](https://github.com/chonkie-inc/tokie)
 
-*10-136x faster tokenization, 10x smaller models, 100% accurate drop-in for HuggingFace*
+*10-20x faster than HuggingFace, 2-4x faster than kitoken, 100% accurate drop-in replacement*
 
 [Install](#install) •
 [Quick Start](#quick-start) •
@@ -25,7 +25,7 @@
 > [!CAUTION]
 > tokie is in its alpha stage and might produce mis-aligned output. Please report any issues you encounter.
 
-**tokie** is a Rust tokenizer library (with Python bindings) that can load any tokenizer on HuggingFace and tokenize up to 80x faster. It supports every major algorithm — BPE, WordPiece, SentencePiece, and Unigram — and is 100% token-accurate, every time.
+**tokie** is a Rust tokenizer library (with Python bindings) that can load any tokenizer on HuggingFace and tokenize 10-20x faster than HuggingFace tokenizers and 2-4x faster than kitoken. It supports every major algorithm — BPE, WordPiece, SentencePiece, and Unigram — and is 100% token-accurate, every time.
 
 ![benchmark](assets/benchmark.png)
 
@@ -170,22 +170,37 @@ SentencePiece-style models use a different merge algorithm with non-topological 
 
 ![SentencePiece BPE speed](assets/benchmark_sentencepiece.png)
 
-### Python Benchmarks (tokie vs HuggingFace tokenizers)
+### Python Benchmarks
 
-Run `python scripts/benchmark_vs_hf.py` to reproduce. All results on Apple M3 Pro, median of 10 runs.
+All results on Apple M3 Pro, single-string encode, median of 10 runs.
 
-| Model | Text Size | tokie | HF tokenizers | Speedup |
-|-------|-----------|-------|---------------|---------|
-| BERT | 45 KB | 0.15 ms | 9.15 ms | **61x** |
-| BERT | 900 KB | 1.69 ms | 229 ms | **136x** |
-| GPT-2 | 45 KB | 0.14 ms | 7.20 ms | **50x** |
-| GPT-2 | 900 KB | 1.70 ms | 181 ms | **107x** |
-| Llama 3 | 45 KB | 0.14 ms | 7.33 ms | **54x** |
-| Llama 3 | 900 KB | 2.04 ms | 190 ms | **93x** |
-| Qwen 3 | 45 KB | 0.15 ms | 8.18 ms | **54x** |
-| Gemma 3 | 45 KB | 1.01 ms | 9.62 ms | **10x** |
+#### tokie vs HuggingFace tokenizers vs kitoken
 
-100% token-accurate across all models. Batch encoding is 17-22x faster. Decoding is 7-32x faster.
+| Model | Text Size | tokie | HF tokenizers | kitoken | vs HF | vs kitoken |
+|-------|-----------|-------|---------------|---------|-------|------------|
+| BERT | 45 KB | 0.76 ms | 11.2 ms | 2.19 ms | **15x** | **2.9x** |
+| BERT | 900 KB | 14.3 ms | 279 ms | 51.8 ms | **20x** | **3.6x** |
+| GPT-2 | 45 KB | 0.91 ms | 8.34 ms | 1.27 ms | **9x** | **1.4x** |
+| GPT-2 | 900 KB | 15.8 ms | 246 ms | 29.8 ms | **16x** | **1.9x** |
+| Llama 3 | 45 KB | 0.84 ms | 8.60 ms | 1.58 ms | **10x** | **1.9x** |
+| Llama 3 | 900 KB | 15.0 ms | 222 ms | 35.1 ms | **15x** | **2.3x** |
+| Qwen 3 | 45 KB | 0.84 ms | 9.80 ms | 2.22 ms | **12x** | **2.6x** |
+| Qwen 3 | 900 KB | 15.8 ms | 270 ms | 49.3 ms | **17x** | **3.1x** |
+| ModernBERT | 45 KB | 1.11 ms | 10.0 ms | 1.76 ms | **9x** | **1.6x** |
+| ModernBERT | 900 KB | 26.7 ms | 276 ms | 50.7 ms | **10x** | **1.9x** |
+| Gemma 3 | 45 KB | 9.29 ms | 10.6 ms | 5.01 ms | 1.1x | 0.5x |
+| Gemma 3 | 900 KB | 160 ms | 214 ms | 93.7 ms | 1.3x | 0.6x |
+
+#### tokie vs tiktoken (OpenAI models)
+
+| Model | Text Size | tokie | tiktoken | Speedup |
+|-------|-----------|-------|----------|---------|
+| cl100k (GPT-4) | 45 KB | 0.82 ms | 2.87 ms | **3.5x** |
+| cl100k (GPT-4) | 900 KB | 16.4 ms | 61.3 ms | **3.7x** |
+| o200k (GPT-4o) | 45 KB | 0.88 ms | 4.68 ms | **5.3x** |
+| o200k (GPT-4o) | 900 KB | 17.5 ms | 97.4 ms | **5.6x** |
+
+100% token-accurate across all models. Batch encoding is 4-6x faster than HF and 2-3x faster than kitoken.
 
 ### Tokenizer Loading
 
