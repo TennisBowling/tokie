@@ -156,7 +156,7 @@ All benchmarks run on 1 MB of enwik8 on an Apple M3 Pro. tokie produces **identi
 
 For tiktoken-style BPE models, tokie uses a backtracking encoder built on an Aho-Corasick automaton. Instead of iteratively merging byte pairs, it does a greedy longest-match in O(n) time, with backtracking only when adjacent tokens form invalid pairs. Combined with parallel chunking across all cores and hand-coded pretokenizers from [pretokie](https://crates.io/crates/pretokie), this gives **10-17x faster** than HuggingFace and **1.4-3.1x faster** than kitoken.
 
-![BPE encoding speed](assets/benchmark.png)
+![BPE encoding speed](assets/benchmark_bpe.png)
 
 ### WordPiece (BERT, MiniLM, BGE, GTE)
 
