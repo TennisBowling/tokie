@@ -133,12 +133,17 @@ impl<'a> O200k<'a> {
         b != b'\n' && b != b'\r' && !is_ascii_letter(b) && !is_digit(b) && b < 0x80
     }
 
+    #[inline(always)]
+    fn is_punct_char(b: u8) -> bool {
+        !is_ascii_letter(b) && !is_digit(b) && b != b' ' && b != b'\t' && b != b'\n' && b != b'\r' && b < 0x80
+    }
+
     /// Scan punct characters + trailing newlines + trailing slashes.
     #[inline(always)]
     fn scan_punct(&mut self) {
         while self.pos < self.len {
             let b = self.at(self.pos);
-            if Self::is_prefix_char(b) {
+            if Self::is_punct_char(b) {
                 self.pos += 1;
             } else if b >= 0x80 {
                 let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
@@ -230,14 +235,19 @@ impl<'a> Iterator for O200k<'a> {
                         self.pos += 1;
                         self.scan_punct();
                     }
-                } else if Self::is_prefix_char(next) || next == b'\'' {
+                } else if Self::is_punct_char(next) || next == b'\'' {
                     self.pos += 1;
                     self.scan_punct();
                 } else {
-                    // Bare space or space before digit/newline
                     self.pos += 1;
                     while self.pos < self.len && self.at(self.pos) == b' ' {
                         self.pos += 1;
+                    }
+                    if self.pos < self.len && self.pos > start + 1 {
+                        let next = self.at(self.pos);
+                        if next != b' ' && next != b'\n' && next != b'\r' && next != b'\t' {
+                            self.pos -= 1;
+                        }
                     }
                 }
             } else {
@@ -248,7 +258,7 @@ impl<'a> Iterator for O200k<'a> {
             self.pos += 1;
             while self.pos < self.len {
                 let c = self.at(self.pos);
-                if c == b'\n' || c == b'\r' || c == b' ' { self.pos += 1; }
+                if c == b'\n' || c == b'\r' { self.pos += 1; }
                 else { break; }
             }
         } else if b >= 0x80 {
@@ -307,9 +317,11 @@ impl<'a> Iterator for O200k<'a> {
                         if clen > 0 { self.pos += clen; }
                     } else {
                         self.pos += 1;
+                        self.scan_punct();
                     }
                 } else {
                     self.pos += 1;
+                    self.scan_punct();
                 }
             } else {
                 self.pos += 1;

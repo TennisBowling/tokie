@@ -72,19 +72,24 @@ impl<'a> Cl100k<'a> {
         0
     }
 
-    /// Is current byte a non-newline, non-letter, non-number character?
+    /// Can this byte prefix letters? `[^\r\n\p{L}\p{N}]` — includes space, tab, punct
     #[inline(always)]
     fn is_prefix_char(b: u8) -> bool {
         b != b'\n' && b != b'\r' && !is_ascii_letter(b) && !is_digit(b) && b < 0x80
     }
 
-    /// Scan non-whitespace, non-letter, non-digit punctuation + optional trailing newlines.
+    /// Is this a punct char? `[^\s\p{L}\p{N}]` — excludes ALL whitespace
+    #[inline(always)]
+    fn is_punct_char(b: u8) -> bool {
+        !is_ascii_letter(b) && !is_digit(b) && b != b' ' && b != b'\t' && b != b'\n' && b != b'\r' && b < 0x80
+    }
+
+    /// Scan punct group `[^\s\p{L}\p{N}]+` + optional trailing newlines.
     #[inline(always)]
     fn scan_punct_with_newlines(&mut self) {
-        // Punct chars
         while self.pos < self.len {
             let b = self.at(self.pos);
-            if Self::is_prefix_char(b) {
+            if Self::is_punct_char(b) {
                 self.pos += 1;
             } else if b >= 0x80 {
                 let (ch, _cl) = decode_utf8(&self.bytes[self.pos..]);
@@ -175,27 +180,35 @@ impl<'a> Iterator for Cl100k<'a> {
                         self.pos += 1;
                         self.scan_punct_with_newlines();
                     }
-                } else if Self::is_prefix_char(next) || next == b'\'' {
+                } else if Self::is_punct_char(next) || next == b'\'' {
                     // Space + punct run
                     self.pos += 1;
                     self.scan_punct_with_newlines();
                 } else {
-                    // Bare space (or space before digit/newline)
+                    // Group consecutive spaces, then back up one if followed
+                    // by non-whitespace (so last space can prefix next piece).
                     self.pos += 1;
-                    // Group consecutive spaces
                     while self.pos < self.len && self.at(self.pos) == b' ' {
                         self.pos += 1;
+                    }
+                    // Back up: leave last space for prefix if non-ws follows
+                    if self.pos < self.len && self.pos > start + 1 {
+                        let next = self.at(self.pos);
+                        if next != b' ' && next != b'\n' && next != b'\r' && next != b'\t' {
+                            self.pos -= 1;
+                        }
                     }
                 }
             } else {
                 self.pos += 1;
             }
         } else if b == b'\n' || b == b'\r' {
-            // Whitespace with newline: `\s*[\r\n]` — consume preceding spaces and the newline
+            // Newline-anchored whitespace: `\s*[\r\n]+`
+            // Consume this newline + any following newlines, but NOT trailing spaces
             self.pos += 1;
             while self.pos < self.len {
                 let c = self.at(self.pos);
-                if c == b'\n' || c == b'\r' || c == b' ' { self.pos += 1; }
+                if c == b'\n' || c == b'\r' { self.pos += 1; }
                 else { break; }
             }
         } else if b >= 0x80 {
@@ -232,7 +245,7 @@ impl<'a> Iterator for Cl100k<'a> {
                 }
             }
         } else {
-            // Other ASCII punct — can prefix letters only
+            // Other ASCII punct — try prefix letters, else punct group
             if self.pos + 1 < self.len {
                 let next = self.at(self.pos + 1);
                 if is_ascii_letter(next) {
@@ -245,12 +258,13 @@ impl<'a> Iterator for Cl100k<'a> {
                         self.pos += 1;
                         self.scan_letters();
                     } else {
-                        // Single char — don't group non-letter prefixes
                         self.pos += 1;
+                        self.scan_punct_with_newlines();
                     }
                 } else {
-                    // Single char — next is not a letter
+                    // Not a letter — start punct group
                     self.pos += 1;
+                    self.scan_punct_with_newlines();
                 }
             } else {
                 self.pos += 1;
