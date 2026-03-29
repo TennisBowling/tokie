@@ -12,7 +12,7 @@
 [![docs.rs](https://img.shields.io/docsrs/tokie)](https://docs.rs/tokie)
 [![GitHub Stars](https://img.shields.io/github/stars/chonkie-inc/tokie)](https://github.com/chonkie-inc/tokie)
 
-*10-20x faster than HuggingFace, 2-4x faster than kitoken, 100% accurate drop-in replacement*
+*10-20x faster than HuggingFace, 100% accurate drop-in replacement*
 
 [Install](#install) •
 [Quick Start](#quick-start) •
@@ -25,7 +25,7 @@
 > [!CAUTION]
 > tokie is in its alpha stage and might produce mis-aligned output. Please report any issues you encounter.
 
-**tokie** is a Rust tokenizer library (with Python bindings) that can load any tokenizer on HuggingFace and tokenize 10-20x faster than HuggingFace tokenizers and 2-4x faster than kitoken. It supports every major algorithm — BPE, WordPiece, SentencePiece, and Unigram — and is 100% token-accurate, every time.
+**tokie** is a Rust tokenizer library (with Python bindings) that can load any tokenizer on HuggingFace and tokenize 10-20x faster. It supports every major algorithm — BPE, WordPiece, SentencePiece, and Unigram — and is 100% token-accurate, every time.
 
 ![benchmark](assets/benchmark.png)
 
