@@ -71,9 +71,12 @@ impl<'a> DeepSeek<'a> {
         0
     }
 
+    /// Scan ASCII-only letters: `[A-Za-z]+` (DeepSeek's punct+letter pattern).
     #[inline(always)]
-    fn is_prefix_char(b: u8) -> bool {
-        b != b'\n' && b != b'\r' && !is_ascii_letter(b) && !is_digit(b) && b < 0x80
+    fn scan_ascii_letters(&mut self) {
+        while self.pos < self.len && is_ascii_letter(self.at(self.pos)) {
+            self.pos += 1;
+        }
     }
 
     #[inline(always)]
@@ -99,6 +102,49 @@ impl<'a> DeepSeek<'a> {
             if b == b'\n' || b == b'\r' { self.pos += 1; }
             else { break; }
         }
+    }
+
+    #[inline(always)]
+    fn scan_whitespace_to_newline(&mut self) {
+        let start = self.pos;
+        let mut last_newline_end = 0usize;
+        let mut prev_pos = self.pos;
+        while self.pos < self.len {
+            let c = self.at(self.pos);
+            if c == b'\n' || c == b'\r' {
+                prev_pos = self.pos;
+                self.pos += 1;
+                last_newline_end = self.pos;
+            } else if c == b' ' || c == b'\t' {
+                prev_pos = self.pos;
+                self.pos += 1;
+            } else if c >= 0x80 {
+                let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
+                if ch.is_whitespace() { prev_pos = self.pos; self.pos += cl; } else { break; }
+            } else {
+                break;
+            }
+        }
+        if last_newline_end > 0 {
+            self.pos = last_newline_end;
+        } else {
+            // Don't back up before digits or CJK (pre-tokenizer boundaries)
+            if self.pos < self.len && prev_pos > start {
+                let next = self.at(self.pos);
+                if !is_digit(next) && !(next >= 0x80 && Self::is_cjk_start(next, &self.bytes[self.pos..])) {
+                    self.pos = prev_pos;
+                }
+            }
+        }
+    }
+
+    /// Check if a byte sequence starts a CJK character (U+4E00-U+9FA5, hiragana, katakana).
+    #[inline(always)]
+    fn is_cjk_start(b: u8, bytes: &[u8]) -> bool {
+        if b < 0xE0 { return false; }
+        let (ch, _) = decode_utf8(bytes);
+        let cp = ch as u32;
+        matches!(cp, 0x4E00..=0x9FA5 | 0x3040..=0x309F | 0x30A0..=0x30FF)
     }
 
     #[inline(always)]
@@ -151,18 +197,19 @@ impl<'a> Iterator for DeepSeek<'a> {
             }
         } else if is_digit(b) {
             self.scan_digits_chunked();
-        } else if b == b' ' {
+        } else if b == b' ' || b == b'\t' {
             if self.pos + 1 < self.len {
                 let next = self.at(self.pos + 1);
                 if is_ascii_letter(next) {
-                    self.pos += 1;
-                    self.pos += 1;
+                    self.pos += 2;
                     self.scan_letters_with_marks();
                 } else if next >= 0x80 {
                     let (ch, _) = decode_utf8(&self.bytes[self.pos + 1..]);
                     if ch.is_alphabetic() || is_unicode_mark(ch) {
                         self.pos += 1;
                         self.scan_letters_with_marks();
+                    } else if ch.is_whitespace() || ch.is_numeric() {
+                        self.scan_whitespace_to_newline();
                     } else {
                         self.pos += 1;
                         self.scan_punct_with_newlines();
@@ -171,27 +218,13 @@ impl<'a> Iterator for DeepSeek<'a> {
                     self.pos += 1;
                     self.scan_punct_with_newlines();
                 } else {
-                    self.pos += 1;
-                    while self.pos < self.len && self.at(self.pos) == b' ' {
-                        self.pos += 1;
-                    }
-                    if self.pos < self.len && (self.at(self.pos) == b'\n' || self.at(self.pos) == b'\r') {
-                        while self.pos < self.len {
-                            let c = self.at(self.pos);
-                            if c == b' ' || c == b'\n' || c == b'\r' || c == b'\t' { self.pos += 1; }
-                            else { break; }
-                        }
-                    } else if self.pos < self.len && self.pos > start + 1 {
-                        let next = self.at(self.pos);
-                        if next != b' ' && next != b'\n' && next != b'\r' && next != b'\t' {
-                            self.pos -= 1;
-                        }
-                    }
+                    self.scan_whitespace_to_newline();
                 }
             } else {
                 self.pos += 1;
             }
         } else if b == b'\n' || b == b'\r' {
+            // \s*[\r\n]+ — consume all consecutive newlines
             self.pos += 1;
             while self.pos < self.len {
                 let c = self.at(self.pos);
@@ -207,37 +240,38 @@ impl<'a> Iterator for DeepSeek<'a> {
                 self.pos += cl;
                 self.scan_digits_chunked();
             } else if ch.is_whitespace() {
-                self.pos += cl;
-                while self.pos < self.len {
-                    let c = self.at(self.pos);
-                    if c == b' ' || c == b'\n' || c == b'\r' { self.pos += 1; }
-                    else if c >= 0x80 {
-                        let (ch2, cl2) = decode_utf8(&self.bytes[self.pos..]);
-                        if ch2.is_whitespace() { self.pos += cl2; } else { break; }
-                    } else { break; }
-                }
+                self.scan_whitespace_to_newline();
             } else {
-                // Non-ASCII symbol — DeepSeek: ASCII-only prefix, so no prefix here
+                // Non-ASCII symbol: try prefix letters, else punct group
                 self.pos += cl;
+                if self.pos < self.len {
+                    let next = self.at(self.pos);
+                    if is_ascii_letter(next) {
+                        self.pos += 1;
+                        self.scan_letters_with_marks();
+                    } else if next >= 0x80 {
+                        let (ch2, _) = decode_utf8(&self.bytes[self.pos..]);
+                        if ch2.is_alphabetic() || is_unicode_mark(ch2) {
+                            self.scan_letters_with_marks();
+                        } else if !ch2.is_whitespace() && !ch2.is_numeric() {
+                            self.scan_punct_with_newlines();
+                        }
+                    } else if Self::is_punct_char(next) {
+                        self.scan_punct_with_newlines();
+                    }
+                }
             }
         } else {
-            // Other ASCII punct — can prefix letters
+            // ASCII punct: [!"#$%...][A-Za-z]+ (ASCII letters only) or punct group
             if self.pos + 1 < self.len {
                 let next = self.at(self.pos + 1);
                 if is_ascii_letter(next) {
-                    self.pos += 1;
-                    self.pos += 1;
-                    self.scan_letters_with_marks();
-                } else if next >= 0x80 {
-                    let (ch, _) = decode_utf8(&self.bytes[self.pos + 1..]);
-                    if ch.is_alphabetic() || is_unicode_mark(ch) {
-                        self.pos += 1;
-                        self.scan_letters_with_marks();
-                    } else {
-                        self.pos += 1;
-                        self.scan_punct_with_newlines();
-                    }
+                    // DeepSeek pattern 1: [punct][A-Za-z]+ — ASCII letters only
+                    self.pos += 2;
+                    self.scan_ascii_letters();
                 } else {
+                    // Punct not followed by ASCII letter — emit as punct group
+                    // scan_punct_with_newlines will stop at letters/digits/whitespace
                     self.pos += 1;
                     self.scan_punct_with_newlines();
                 }

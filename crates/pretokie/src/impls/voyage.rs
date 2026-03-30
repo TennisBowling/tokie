@@ -6,7 +6,7 @@
 //! - Any non-newline/non-alnum char can prefix letters
 //! - No trailing slashes on punctuation (unlike O200K)
 
-use crate::util::{decode_utf8, is_ascii_letter, is_digit};
+use crate::util::{decode_utf8, is_ascii_letter, is_digit, is_unicode_letter};
 
 pub struct Voyage<'a> {
     bytes: &'a [u8],
@@ -33,7 +33,7 @@ impl<'a> Voyage<'a> {
                 self.pos += 1;
             } else if b >= 0x80 {
                 let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
-                if ch.is_alphabetic() { self.pos += cl; } else { return; }
+                if is_unicode_letter(ch) { self.pos += cl; } else { return; }
             } else {
                 return;
             }
@@ -64,11 +64,6 @@ impl<'a> Voyage<'a> {
     }
 
     #[inline(always)]
-    fn is_prefix_char(b: u8) -> bool {
-        b != b'\n' && b != b'\r' && !is_ascii_letter(b) && !is_digit(b) && b < 0x80
-    }
-
-    #[inline(always)]
     fn is_punct_char(b: u8) -> bool {
         !is_ascii_letter(b) && !is_digit(b) && b != b' ' && b != b'\t' && b != b'\n' && b != b'\r' && b < 0x80
     }
@@ -81,18 +76,47 @@ impl<'a> Voyage<'a> {
                 self.pos += 1;
             } else if b >= 0x80 {
                 let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
-                if !ch.is_alphabetic() && !ch.is_numeric() && !ch.is_whitespace() {
+                if !is_unicode_letter(ch) && !ch.is_numeric() && !ch.is_whitespace() {
                     self.pos += cl;
                 } else { break; }
             } else {
                 break;
             }
         }
-        // Trailing newlines
         while self.pos < self.len {
             let b = self.at(self.pos);
             if b == b'\n' || b == b'\r' { self.pos += 1; }
             else { break; }
+        }
+    }
+
+    #[inline(always)]
+    fn scan_whitespace_to_newline(&mut self) {
+        let start = self.pos;
+        let mut last_newline_end = 0usize;
+        let mut prev_pos = self.pos;
+        while self.pos < self.len {
+            let c = self.at(self.pos);
+            if c == b'\n' || c == b'\r' {
+                prev_pos = self.pos;
+                self.pos += 1;
+                last_newline_end = self.pos;
+            } else if c == b' ' || c == b'\t' {
+                prev_pos = self.pos;
+                self.pos += 1;
+            } else if c >= 0x80 {
+                let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
+                if ch.is_whitespace() { prev_pos = self.pos; self.pos += cl; } else { break; }
+            } else {
+                break;
+            }
+        }
+        if last_newline_end > 0 {
+            self.pos = last_newline_end;
+        } else {
+            if self.pos < self.len && prev_pos > start {
+                self.pos = prev_pos;
+            }
         }
     }
 
@@ -119,45 +143,42 @@ impl<'a> Iterator for Voyage<'a> {
             let clen = self.check_contraction();
             if clen > 0 {
                 self.pos += clen;
-            } else {
-                if self.pos + 1 < self.len {
-                    let next = self.at(self.pos + 1);
-                    if is_ascii_letter(next) {
-                        self.pos += 1;
+            } else if self.pos + 1 < self.len {
+                let next = self.at(self.pos + 1);
+                if is_ascii_letter(next) {
+                    self.pos += 2;
+                    self.scan_letters();
+                } else if next >= 0x80 {
+                    let (ch, _) = decode_utf8(&self.bytes[self.pos + 1..]);
+                    if is_unicode_letter(ch) {
                         self.pos += 1;
                         self.scan_letters();
-                    } else if next >= 0x80 {
-                        let (ch, _) = decode_utf8(&self.bytes[self.pos + 1..]);
-                        if ch.is_alphabetic() {
-                            self.pos += 1;
-                            self.scan_letters();
-                        } else {
-                            self.pos += 1;
-                            self.scan_punct_with_newlines();
-                        }
                     } else {
                         self.pos += 1;
                         self.scan_punct_with_newlines();
                     }
                 } else {
                     self.pos += 1;
+                    self.scan_punct_with_newlines();
                 }
+            } else {
+                self.pos += 1;
             }
         } else if is_digit(b) {
-            // Single digit — the only difference from CL100K
             self.pos += 1;
-        } else if b == b' ' {
+        } else if b == b' ' || b == b'\t' {
             if self.pos + 1 < self.len {
                 let next = self.at(self.pos + 1);
                 if is_ascii_letter(next) {
-                    self.pos += 1;
-                    self.pos += 1;
+                    self.pos += 2;
                     self.scan_letters();
                 } else if next >= 0x80 {
                     let (ch, _) = decode_utf8(&self.bytes[self.pos + 1..]);
-                    if ch.is_alphabetic() {
+                    if is_unicode_letter(ch) {
                         self.pos += 1;
                         self.scan_letters();
+                    } else if ch.is_whitespace() || ch.is_numeric() {
+                        self.scan_whitespace_to_newline();
                     } else {
                         self.pos += 1;
                         self.scan_punct_with_newlines();
@@ -166,27 +187,14 @@ impl<'a> Iterator for Voyage<'a> {
                     self.pos += 1;
                     self.scan_punct_with_newlines();
                 } else {
-                    self.pos += 1;
-                    while self.pos < self.len && self.at(self.pos) == b' ' {
-                        self.pos += 1;
-                    }
-                    if self.pos < self.len && (self.at(self.pos) == b'\n' || self.at(self.pos) == b'\r') {
-                        while self.pos < self.len {
-                            let c = self.at(self.pos);
-                            if c == b' ' || c == b'\n' || c == b'\r' || c == b'\t' { self.pos += 1; }
-                            else { break; }
-                        }
-                    } else if self.pos < self.len && self.pos > start + 1 {
-                        let next = self.at(self.pos);
-                        if next != b' ' && next != b'\n' && next != b'\r' && next != b'\t' {
-                            self.pos -= 1;
-                        }
-                    }
+                    // Space + digit/space/newline/tab → whitespace run
+                    self.scan_whitespace_to_newline();
                 }
             } else {
                 self.pos += 1;
             }
         } else if b == b'\n' || b == b'\r' {
+            // \s*[\r\n]+ — consume all consecutive newlines
             self.pos += 1;
             while self.pos < self.len {
                 let c = self.at(self.pos);
@@ -195,47 +203,42 @@ impl<'a> Iterator for Voyage<'a> {
             }
         } else if b >= 0x80 {
             let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
-            if ch.is_alphabetic() {
+            if is_unicode_letter(ch) {
                 self.pos += cl;
                 self.scan_letters();
             } else if ch.is_numeric() {
-                // Single Unicode digit
                 self.pos += cl;
             } else if ch.is_whitespace() {
-                self.pos += cl;
-                while self.pos < self.len {
-                    let c = self.at(self.pos);
-                    if c == b' ' || c == b'\n' || c == b'\r' { self.pos += 1; }
-                    else if c >= 0x80 {
-                        let (ch2, cl2) = decode_utf8(&self.bytes[self.pos..]);
-                        if ch2.is_whitespace() { self.pos += cl2; } else { break; }
-                    } else { break; }
-                }
+                self.scan_whitespace_to_newline();
             } else {
-                if self.pos + cl < self.len {
-                    let next = self.at(self.pos + cl);
+                // Non-ASCII symbol: try prefix letters, else punct group
+                self.pos += cl;
+                if self.pos < self.len {
+                    let next = self.at(self.pos);
                     if is_ascii_letter(next) {
-                        self.pos += cl;
                         self.pos += 1;
                         self.scan_letters();
-                    } else {
-                        self.pos += cl;
+                    } else if next >= 0x80 {
+                        let (ch2, _) = decode_utf8(&self.bytes[self.pos..]);
+                        if is_unicode_letter(ch2) {
+                            self.scan_letters();
+                        } else if !ch2.is_whitespace() && !ch2.is_numeric() {
+                            self.scan_punct_with_newlines();
+                        }
+                    } else if Self::is_punct_char(next) {
+                        self.scan_punct_with_newlines();
                     }
-                } else {
-                    self.pos += cl;
                 }
             }
         } else {
-            // Other ASCII punct — can prefix letters only
             if self.pos + 1 < self.len {
                 let next = self.at(self.pos + 1);
                 if is_ascii_letter(next) {
-                    self.pos += 1; // consume as prefix
-                    self.pos += 1;
+                    self.pos += 2;
                     self.scan_letters();
                 } else if next >= 0x80 {
                     let (ch, _) = decode_utf8(&self.bytes[self.pos + 1..]);
-                    if ch.is_alphabetic() {
+                    if is_unicode_letter(ch) {
                         self.pos += 1;
                         self.scan_letters();
                     } else {

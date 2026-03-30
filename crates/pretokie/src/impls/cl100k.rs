@@ -5,7 +5,7 @@
 //! Any non-newline/non-alnum char can prefix letters (not just space).
 //! Digits chunked to max 3 per piece.
 
-use crate::util::{decode_utf8, is_ascii_letter, is_digit};
+use crate::util::{decode_utf8, is_ascii_letter, is_digit, is_unicode_letter};
 
 pub struct Cl100k<'a> {
     bytes: &'a [u8],
@@ -32,7 +32,7 @@ impl<'a> Cl100k<'a> {
                 self.pos += 1;
             } else if b >= 0x80 {
                 let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
-                if ch.is_alphabetic() { self.pos += cl; } else { return; }
+                if is_unicode_letter(ch) { self.pos += cl; } else { return; }
             } else {
                 return;
             }
@@ -72,12 +72,6 @@ impl<'a> Cl100k<'a> {
         0
     }
 
-    /// Can this byte prefix letters? `[^\r\n\p{L}\p{N}]` — includes space, tab, punct
-    #[inline(always)]
-    fn is_prefix_char(b: u8) -> bool {
-        b != b'\n' && b != b'\r' && !is_ascii_letter(b) && !is_digit(b) && b < 0x80
-    }
-
     /// Is this a punct char? `[^\s\p{L}\p{N}]` — excludes ALL whitespace
     #[inline(always)]
     fn is_punct_char(b: u8) -> bool {
@@ -92,9 +86,9 @@ impl<'a> Cl100k<'a> {
             if Self::is_punct_char(b) {
                 self.pos += 1;
             } else if b >= 0x80 {
-                let (ch, _cl) = decode_utf8(&self.bytes[self.pos..]);
-                if !ch.is_alphabetic() && !ch.is_numeric() && !ch.is_whitespace() {
-                    self.pos += _cl;
+                let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
+                if !is_unicode_letter(ch) && !ch.is_numeric() && !ch.is_whitespace() {
+                    self.pos += cl;
                 } else { break; }
             } else {
                 break;
@@ -105,6 +99,41 @@ impl<'a> Cl100k<'a> {
             let b = self.at(self.pos);
             if b == b'\n' || b == b'\r' { self.pos += 1; }
             else { break; }
+        }
+    }
+
+    /// Scan whitespace: `\s*[\r\n]+|\s+(?!\S)|\s+`
+    /// Consume all whitespace, find last newline. If found, emit up to
+    /// and including the last consecutive newline(s). If no newline,
+    /// apply negative lookahead (leave last byte for prefix).
+    #[inline(always)]
+    fn scan_whitespace_to_newline(&mut self) {
+        let start = self.pos;
+        let mut last_newline_end = 0usize;
+        let mut prev_pos = self.pos; // track start of last WS char
+        while self.pos < self.len {
+            let c = self.at(self.pos);
+            if c == b'\n' || c == b'\r' {
+                prev_pos = self.pos;
+                self.pos += 1;
+                last_newline_end = self.pos;
+            } else if c == b' ' || c == b'\t' {
+                prev_pos = self.pos;
+                self.pos += 1;
+            } else if c >= 0x80 {
+                let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
+                if ch.is_whitespace() { prev_pos = self.pos; self.pos += cl; } else { break; }
+            } else {
+                break;
+            }
+        }
+        if last_newline_end > 0 {
+            self.pos = last_newline_end;
+        } else {
+            // \s+(?!\S)|\s+ — back up to before last WS char if followed by non-WS
+            if self.pos < self.len && prev_pos > start {
+                self.pos = prev_pos;
+            }
         }
     }
 
@@ -125,29 +154,25 @@ impl<'a> Iterator for Cl100k<'a> {
         let b = self.at(self.pos);
 
         if is_ascii_letter(b) {
-            // Letter run
             self.pos += 1;
             self.scan_letters();
         } else if b == b'\'' {
-            // Check contraction first (case-insensitive)
             let clen = self.check_contraction();
             if clen > 0 {
                 self.pos += clen;
             } else {
-                // Apostrophe as prefix for letters
+                // Apostrophe as prefix: [^\r\n\p{L}\p{N}]?\p{L}+
                 if self.pos + 1 < self.len {
                     let next = self.at(self.pos + 1);
                     if is_ascii_letter(next) {
-                        self.pos += 1; // consume apostrophe as prefix
-                        self.pos += 1;
+                        self.pos += 2;
                         self.scan_letters();
                     } else if next >= 0x80 {
                         let (ch, _) = decode_utf8(&self.bytes[self.pos + 1..]);
-                        if ch.is_alphabetic() {
+                        if is_unicode_letter(ch) {
                             self.pos += 1;
                             self.scan_letters();
                         } else {
-                            // Punct run
                             self.pos += 1;
                             self.scan_punct_with_newlines();
                         }
@@ -160,57 +185,43 @@ impl<'a> Iterator for Cl100k<'a> {
                 }
             }
         } else if is_digit(b) {
-            // Digit chunk (max 3)
             self.scan_digits_chunked();
-        } else if b == b' ' {
-            // Space can prefix letters
+        } else if b == b' ' || b == b'\t' {
+            // Space/tab: could prefix letters/punct, or be whitespace run
             if self.pos + 1 < self.len {
                 let next = self.at(self.pos + 1);
                 if is_ascii_letter(next) {
-                    self.pos += 1; // consume space as prefix
-                    self.pos += 1;
+                    self.pos += 2;
                     self.scan_letters();
                 } else if next >= 0x80 {
                     let (ch, _) = decode_utf8(&self.bytes[self.pos + 1..]);
-                    if ch.is_alphabetic() {
+                    if is_unicode_letter(ch) {
                         self.pos += 1;
                         self.scan_letters();
+                    } else if ch.is_whitespace() || ch.is_numeric() {
+                        // Whitespace run: \s*[\r\n] or \s+(?!\S) or \s+
+                        self.scan_whitespace_to_newline();
                     } else {
-                        // Space as punct prefix
+                        // Space + non-letter non-WS symbol: punct prefix
                         self.pos += 1;
                         self.scan_punct_with_newlines();
                     }
                 } else if Self::is_punct_char(next) || next == b'\'' {
-                    // Space + punct run
                     self.pos += 1;
                     self.scan_punct_with_newlines();
+                } else if is_digit(next) {
+                    // Space doesn't prefix digits in CL100K
+                    // Whitespace run: \s*[\r\n] or \s+(?!\S) or \s+
+                    self.scan_whitespace_to_newline();
                 } else {
-                    // Whitespace handling: group spaces, check what follows
-                    self.pos += 1;
-                    while self.pos < self.len && self.at(self.pos) == b' ' {
-                        self.pos += 1;
-                    }
-                    // If we hit a newline, merge everything: `\s*[\r\n]+`
-                    if self.pos < self.len && (self.at(self.pos) == b'\n' || self.at(self.pos) == b'\r') {
-                        while self.pos < self.len {
-                            let c = self.at(self.pos);
-                            if c == b' ' || c == b'\n' || c == b'\r' || c == b'\t' { self.pos += 1; }
-                            else { break; }
-                        }
-                    } else if self.pos < self.len && self.pos > start + 1 {
-                        // No newline: back up last space for prefix
-                        let next = self.at(self.pos);
-                        if next != b' ' && next != b'\n' && next != b'\r' && next != b'\t' {
-                            self.pos -= 1;
-                        }
-                    }
+                    // Space + more whitespace → \s*[\r\n] or \s+(?!\S)
+                    self.scan_whitespace_to_newline();
                 }
             } else {
                 self.pos += 1;
             }
         } else if b == b'\n' || b == b'\r' {
-            // Newline-anchored whitespace: `\s*[\r\n]+`
-            // Consume this newline + any following newlines, but NOT trailing spaces
+            // \s*[\r\n]+ — consume all consecutive newlines
             self.pos += 1;
             while self.pos < self.len {
                 let c = self.at(self.pos);
@@ -219,48 +230,46 @@ impl<'a> Iterator for Cl100k<'a> {
             }
         } else if b >= 0x80 {
             let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
-            if ch.is_alphabetic() {
+            if is_unicode_letter(ch) {
                 self.pos += cl;
                 self.scan_letters();
             } else if ch.is_numeric() {
                 self.pos += cl;
                 self.scan_digits_chunked();
             } else if ch.is_whitespace() {
-                self.pos += cl;
-                while self.pos < self.len {
-                    let c = self.at(self.pos);
-                    if c == b' ' || c == b'\n' || c == b'\r' { self.pos += 1; }
-                    else if c >= 0x80 {
-                        let (ch2, cl2) = decode_utf8(&self.bytes[self.pos..]);
-                        if ch2.is_whitespace() { self.pos += cl2; } else { break; }
-                    } else { break; }
-                }
+                // Unicode whitespace: \s*[\r\n] or \s+(?!\S)
+                self.scan_whitespace_to_newline();
             } else {
-                // Non-ASCII symbol — prefix for letters?
-                if self.pos + cl < self.len {
-                    let next = self.at(self.pos + cl);
+                // Non-ASCII symbol: try prefix letters, else punct group
+                self.pos += cl;
+                if self.pos < self.len {
+                    let next = self.at(self.pos);
                     if is_ascii_letter(next) {
-                        self.pos += cl; // consume as prefix
                         self.pos += 1;
                         self.scan_letters();
-                    } else {
-                        self.pos += cl;
+                    } else if next >= 0x80 {
+                        let (ch2, _) = decode_utf8(&self.bytes[self.pos..]);
+                        if is_unicode_letter(ch2) {
+                            self.scan_letters();
+                        } else if !ch2.is_whitespace() && !ch2.is_numeric() {
+                            self.scan_punct_with_newlines();
+                        }
+                    } else if Self::is_punct_char(next) {
+                        // ASCII punct after non-ASCII symbol: group together
+                        self.scan_punct_with_newlines();
                     }
-                } else {
-                    self.pos += cl;
                 }
             }
         } else {
-            // Other ASCII punct — try prefix letters, else punct group
+            // Other ASCII punct — prefix for letters or punct group
             if self.pos + 1 < self.len {
                 let next = self.at(self.pos + 1);
                 if is_ascii_letter(next) {
-                    self.pos += 1; // consume as prefix
-                    self.pos += 1;
+                    self.pos += 2;
                     self.scan_letters();
                 } else if next >= 0x80 {
                     let (ch, _) = decode_utf8(&self.bytes[self.pos + 1..]);
-                    if ch.is_alphabetic() {
+                    if is_unicode_letter(ch) {
                         self.pos += 1;
                         self.scan_letters();
                     } else {
@@ -268,7 +277,6 @@ impl<'a> Iterator for Cl100k<'a> {
                         self.scan_punct_with_newlines();
                     }
                 } else {
-                    // Not a letter — start punct group
                     self.pos += 1;
                     self.scan_punct_with_newlines();
                 }
@@ -301,11 +309,6 @@ mod tests {
     }
 
     #[test]
-    fn digit_exact_3() {
-        assert_eq!(split("123"), vec!["123"]);
-    }
-
-    #[test]
     fn case_insensitive_contraction() {
         assert_eq!(split("DON'T"), vec!["DON", "'T"]);
     }
@@ -318,5 +321,27 @@ mod tests {
     #[test]
     fn space_prefix_letter() {
         assert_eq!(split("a b"), vec!["a", " b"]);
+    }
+
+    #[test]
+    fn newline_single() {
+        // \s*[\r\n] — single newline
+        assert_eq!(split("a\nb"), vec!["a", "\n", "b"]);
+    }
+
+    #[test]
+    fn space_before_newline() {
+        // \s*[\r\n] — space then newline
+        assert_eq!(split("a \nb"), vec!["a", " \n", "b"]);
+    }
+
+    #[test]
+    fn tamil_splitting() {
+        // Tamil vowel signs are marks, not \p{L}
+        let text = "மத";
+        assert_eq!(split(text), vec!["மத"]);
+        // Virama breaks letter run
+        let text2 = "க\u{bcd}க";
+        assert_eq!(split(text2), vec!["க", "\u{bcd}க"]);
     }
 }

@@ -8,7 +8,7 @@
 //! - Punct trailing slashes
 //! - Case-insensitive contractions
 
-use crate::util::{decode_utf8, is_ascii_letter, is_digit};
+use crate::util::{decode_utf8, is_ascii_letter, is_digit, is_unicode_letter, is_unicode_mark};
 
 #[inline(always)]
 fn is_lower(b: u8) -> bool { b.wrapping_sub(b'a') < 26 }
@@ -55,7 +55,7 @@ impl<'a> O200k<'a> {
         }
     }
 
-    /// Scan lowercase letters only — stop at uppercase.
+    /// Scan lowercase letters and marks: [\p{Ll}\p{Lm}\p{Lo}\p{M}]+
     #[inline(always)]
     fn scan_lowercase(&mut self) {
         while self.pos < self.len {
@@ -64,23 +64,24 @@ impl<'a> O200k<'a> {
                 self.pos += 1;
             } else if b >= 0x80 {
                 let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
-                if ch.is_lowercase() || (!ch.is_uppercase() && ch.is_alphabetic()) {
+                // Ll, Lm, Lo, or M category
+                if is_unicode_mark(ch) || ch.is_lowercase()
+                    || (is_unicode_letter(ch) && !ch.is_uppercase())
+                {
                     self.pos += cl;
                 } else { return; }
             } else { return; }
         }
     }
 
-    /// Scan uppercase letters, then optional lowercase.
+    /// Scan uppercase/titlecase/modifier/other letters and marks, then lowercase+marks.
     #[inline(always)]
     fn scan_upper_then_lower(&mut self) {
-        // Consume uppercase
         while self.pos < self.len {
             let b = self.at(self.pos);
             if is_upper(b) {
                 self.pos += 1;
             } else if is_lower(b) {
-                // Hit lowercase — consume it and remaining lowercase
                 self.pos += 1;
                 self.scan_lowercase();
                 return;
@@ -88,11 +89,11 @@ impl<'a> O200k<'a> {
                 let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
                 if ch.is_uppercase() {
                     self.pos += cl;
-                } else if ch.is_lowercase() {
+                } else if ch.is_lowercase() || is_unicode_mark(ch) {
                     self.pos += cl;
                     self.scan_lowercase();
                     return;
-                } else if ch.is_alphabetic() {
+                } else if is_unicode_letter(ch) {
                     // Lm, Lo — continue as "other"
                     self.pos += cl;
                 } else { return; }
@@ -127,18 +128,12 @@ impl<'a> O200k<'a> {
         }
     }
 
-    /// Is byte a non-newline, non-letter, non-digit ASCII character?
-    #[inline(always)]
-    fn is_prefix_char(b: u8) -> bool {
-        b != b'\n' && b != b'\r' && !is_ascii_letter(b) && !is_digit(b) && b < 0x80
-    }
-
     #[inline(always)]
     fn is_punct_char(b: u8) -> bool {
         !is_ascii_letter(b) && !is_digit(b) && b != b' ' && b != b'\t' && b != b'\n' && b != b'\r' && b < 0x80
     }
 
-    /// Scan punct characters + trailing newlines + trailing slashes.
+    /// Scan punct characters + trailing newlines/slashes.
     #[inline(always)]
     fn scan_punct(&mut self) {
         while self.pos < self.len {
@@ -147,16 +142,46 @@ impl<'a> O200k<'a> {
                 self.pos += 1;
             } else if b >= 0x80 {
                 let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
-                if !ch.is_alphabetic() && !ch.is_numeric() && !ch.is_whitespace() {
+                if !is_unicode_letter(ch) && !is_unicode_mark(ch) && !ch.is_numeric() && !ch.is_whitespace() {
                     self.pos += cl;
                 } else { break; }
             } else { break; }
         }
-        // Trailing newlines
+        // Trailing newlines + slashes
         while self.pos < self.len {
             let b = self.at(self.pos);
-            if b == b'\n' || b == b'\r' { self.pos += 1; }
+            if b == b'\n' || b == b'\r' || b == b'/' { self.pos += 1; }
             else { break; }
+        }
+    }
+
+    #[inline(always)]
+    fn scan_whitespace_to_newline(&mut self) {
+        let start = self.pos;
+        let mut last_newline_end = 0usize;
+        let mut prev_pos = self.pos;
+        while self.pos < self.len {
+            let c = self.at(self.pos);
+            if c == b'\n' || c == b'\r' {
+                prev_pos = self.pos;
+                self.pos += 1;
+                last_newline_end = self.pos;
+            } else if c == b' ' || c == b'\t' {
+                prev_pos = self.pos;
+                self.pos += 1;
+            } else if c >= 0x80 {
+                let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
+                if ch.is_whitespace() { prev_pos = self.pos; self.pos += cl; } else { break; }
+            } else {
+                break;
+            }
+        }
+        if last_newline_end > 0 {
+            self.pos = last_newline_end;
+        } else {
+            if self.pos < self.len && prev_pos > start {
+                self.pos = prev_pos;
+            }
         }
     }
 
@@ -195,10 +220,15 @@ impl<'a> Iterator for O200k<'a> {
                     let clen = self.check_contraction_suffix();
                     if clen > 0 { self.pos += clen; }
                 } else if next >= 0x80 {
-                    let (ch, _) = decode_utf8(&self.bytes[self.pos + 1..]);
-                    if ch.is_alphabetic() {
-                        self.pos += 1;
-                        self.scan_lowercase(); // Unicode after apostrophe
+                    let (ch, cl) = decode_utf8(&self.bytes[self.pos + 1..]);
+                    if is_unicode_letter(ch) || is_unicode_mark(ch) {
+                        self.pos += 1; // skip apostrophe prefix
+                        self.pos += cl; // consume first unicode char
+                        if ch.is_lowercase() || is_unicode_mark(ch) {
+                            self.scan_lowercase();
+                        } else {
+                            self.scan_upper_then_lower();
+                        }
                         let clen = self.check_contraction_suffix();
                         if clen > 0 { self.pos += clen; }
                     } else {
@@ -214,23 +244,28 @@ impl<'a> Iterator for O200k<'a> {
             }
         } else if is_digit(b) {
             self.scan_digits_chunked();
-        } else if b == b' ' {
-            // Space can prefix letters
+        } else if b == b' ' || b == b'\t' {
             if self.pos + 1 < self.len {
                 let next = self.at(self.pos + 1);
                 if is_ascii_letter(next) {
-                    self.pos += 1;
-                    self.pos += 1;
+                    self.pos += 2;
                     self.scan_letters_case_aware(next);
                     let clen = self.check_contraction_suffix();
                     if clen > 0 { self.pos += clen; }
                 } else if next >= 0x80 {
-                    let (ch, _) = decode_utf8(&self.bytes[self.pos + 1..]);
-                    if ch.is_alphabetic() {
-                        self.pos += 1;
-                        self.scan_lowercase();
+                    let (ch, cl) = decode_utf8(&self.bytes[self.pos + 1..]);
+                    if is_unicode_letter(ch) || is_unicode_mark(ch) {
+                        self.pos += 1; // consume space prefix
+                        self.pos += cl; // consume first unicode char
+                        if ch.is_lowercase() || is_unicode_mark(ch) {
+                            self.scan_lowercase();
+                        } else {
+                            self.scan_upper_then_lower();
+                        }
                         let clen = self.check_contraction_suffix();
                         if clen > 0 { self.pos += clen; }
+                    } else if ch.is_whitespace() || ch.is_numeric() {
+                        self.scan_whitespace_to_newline();
                     } else {
                         self.pos += 1;
                         self.scan_punct();
@@ -239,28 +274,13 @@ impl<'a> Iterator for O200k<'a> {
                     self.pos += 1;
                     self.scan_punct();
                 } else {
-                    self.pos += 1;
-                    while self.pos < self.len && self.at(self.pos) == b' ' {
-                        self.pos += 1;
-                    }
-                    if self.pos < self.len && (self.at(self.pos) == b'\n' || self.at(self.pos) == b'\r') {
-                        while self.pos < self.len {
-                            let c = self.at(self.pos);
-                            if c == b' ' || c == b'\n' || c == b'\r' || c == b'\t' { self.pos += 1; }
-                            else { break; }
-                        }
-                    } else if self.pos < self.len && self.pos > start + 1 {
-                        let next = self.at(self.pos);
-                        if next != b' ' && next != b'\n' && next != b'\r' && next != b'\t' {
-                            self.pos -= 1;
-                        }
-                    }
+                    self.scan_whitespace_to_newline();
                 }
             } else {
                 self.pos += 1;
             }
         } else if b == b'\n' || b == b'\r' {
-            // Whitespace with newline
+            // \s*[\r\n]+ — consume all consecutive newlines
             self.pos += 1;
             while self.pos < self.len {
                 let c = self.at(self.pos);
@@ -269,39 +289,44 @@ impl<'a> Iterator for O200k<'a> {
             }
         } else if b >= 0x80 {
             let (ch, cl) = decode_utf8(&self.bytes[self.pos..]);
-            if ch.is_alphabetic() {
+            if is_unicode_letter(ch) {
                 self.pos += cl;
                 if ch.is_lowercase() { self.scan_lowercase(); } else { self.scan_upper_then_lower(); }
+                let clen = self.check_contraction_suffix();
+                if clen > 0 { self.pos += clen; }
+            } else if is_unicode_mark(ch) {
+                // Mark as start — scan as lowercase
+                self.pos += cl;
+                self.scan_lowercase();
                 let clen = self.check_contraction_suffix();
                 if clen > 0 { self.pos += clen; }
             } else if ch.is_numeric() {
                 self.pos += cl;
                 self.scan_digits_chunked();
             } else if ch.is_whitespace() {
-                self.pos += cl;
-                while self.pos < self.len {
-                    let c = self.at(self.pos);
-                    if c == b' ' || c == b'\n' || c == b'\r' { self.pos += 1; }
-                    else if c >= 0x80 {
-                        let (ch2, cl2) = decode_utf8(&self.bytes[self.pos..]);
-                        if ch2.is_whitespace() { self.pos += cl2; } else { break; }
-                    } else { break; }
-                }
+                self.scan_whitespace_to_newline();
             } else {
-                // Non-ASCII symbol — can prefix letters
-                if self.pos + cl < self.len {
-                    let next = self.at(self.pos + cl);
+                // Non-ASCII symbol: try prefix letters, else punct group
+                self.pos += cl;
+                if self.pos < self.len {
+                    let next = self.at(self.pos);
                     if is_ascii_letter(next) {
-                        self.pos += cl;
                         self.pos += 1;
                         self.scan_letters_case_aware(next);
                         let clen = self.check_contraction_suffix();
                         if clen > 0 { self.pos += clen; }
-                    } else {
-                        self.pos += cl;
+                    } else if next >= 0x80 {
+                        let (ch2, _) = decode_utf8(&self.bytes[self.pos..]);
+                        if is_unicode_letter(ch2) || is_unicode_mark(ch2) {
+                            self.scan_lowercase();
+                            let clen = self.check_contraction_suffix();
+                            if clen > 0 { self.pos += clen; }
+                        } else if !ch2.is_whitespace() && !ch2.is_numeric() {
+                            self.scan_punct();
+                        }
+                    } else if Self::is_punct_char(next) {
+                        self.scan_punct();
                     }
-                } else {
-                    self.pos += cl;
                 }
             }
         } else {
@@ -315,10 +340,15 @@ impl<'a> Iterator for O200k<'a> {
                     let clen = self.check_contraction_suffix();
                     if clen > 0 { self.pos += clen; }
                 } else if next >= 0x80 {
-                    let (ch, _) = decode_utf8(&self.bytes[self.pos + 1..]);
-                    if ch.is_alphabetic() {
-                        self.pos += 1;
-                        self.scan_lowercase();
+                    let (ch, cl) = decode_utf8(&self.bytes[self.pos + 1..]);
+                    if is_unicode_letter(ch) || is_unicode_mark(ch) {
+                        self.pos += 1; // skip punct prefix
+                        self.pos += cl; // consume first unicode char
+                        if ch.is_lowercase() || is_unicode_mark(ch) {
+                            self.scan_lowercase();
+                        } else {
+                            self.scan_upper_then_lower();
+                        }
                         let clen = self.check_contraction_suffix();
                         if clen > 0 { self.pos += clen; }
                     } else {
