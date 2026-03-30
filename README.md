@@ -12,7 +12,7 @@
 [![docs.rs](https://img.shields.io/docsrs/tokie)](https://docs.rs/tokie)
 [![GitHub Stars](https://img.shields.io/github/stars/chonkie-inc/tokie)](https://github.com/chonkie-inc/tokie)
 
-*10-20x faster than HuggingFace, 100% accurate drop-in replacement*
+*15-29x faster than HuggingFace, 100% accurate drop-in replacement*
 
 [Install](#install) •
 [Quick Start](#quick-start) •
@@ -25,7 +25,7 @@
 > [!CAUTION]
 > tokie is in its alpha stage and might produce mis-aligned output. Please report any issues you encounter.
 
-**tokie** is a Rust tokenizer library (with Python bindings) that can load any tokenizer on HuggingFace and tokenize 10-20x faster. It supports every major algorithm — BPE, WordPiece, SentencePiece, and Unigram — and is 100% token-accurate, every time.
+**tokie** is a Rust tokenizer library (with Python bindings) that can load any tokenizer on HuggingFace and tokenize 15-29x faster. It supports every major algorithm — BPE, WordPiece, SentencePiece, and Unigram — and is 100% token-accurate, every time.
 
 ![benchmark](assets/benchmark.png)
 
@@ -41,7 +41,7 @@ pip install tokie
 
 ```toml
 [dependencies]
-tokie = { version = "0.0.7", features = ["hf"] }
+tokie = { version = "0.0.8", features = ["hf"] }
 ```
 
 ## Quick Start
@@ -154,19 +154,19 @@ All benchmarks run on 1 MB of enwik8 on an Apple M3 Pro. tokie produces **identi
 
 ### BPE Encoding (GPT-2, Llama, Qwen, ModernBERT)
 
-For tiktoken-style BPE models, tokie uses a backtracking encoder built on an Aho-Corasick automaton. Instead of iteratively merging byte pairs, it does a greedy longest-match in O(n) time, with backtracking only when adjacent tokens form invalid pairs. Combined with parallel chunking across all cores and hand-coded pretokenizers from [pretokie](https://crates.io/crates/pretokie), this gives **10-17x faster** than HuggingFace and **1.4-3.1x faster** than kitoken.
+For tiktoken-style BPE models, tokie uses a backtracking encoder built on an Aho-Corasick automaton. Instead of iteratively merging byte pairs, it does a greedy longest-match in O(n) time, with backtracking only when adjacent tokens form invalid pairs. Combined with parallel chunking across all cores and hand-coded pretokenizers from [pretokie](https://crates.io/crates/pretokie), this gives **15-24x faster** than HuggingFace.
 
 ![BPE encoding speed](assets/benchmark_bpe.png)
 
 ### WordPiece (BERT, MiniLM, BGE, GTE)
 
-WordPiece tokenizers use a different algorithm — greedy longest-match prefix search over a vocabulary trie. tokie uses a pre-built Double-Array trie for O(n) lookup with excellent cache locality, combined with a specialized BERT pretokenizer. The result is **15-20x faster** than HuggingFace and **2.9-3.6x faster** than kitoken on BERT, with identical output.
+WordPiece tokenizers use a different algorithm — greedy longest-match prefix search over a vocabulary trie. tokie uses a pre-built Double-Array trie for O(n) lookup with excellent cache locality, combined with a specialized BERT pretokenizer. The result is **20-29x faster** than HuggingFace on BERT, with identical output.
 
 ![WordPiece encoding speed](assets/benchmark_wordpiece.png)
 
 ### SentencePiece BPE & Unigram (Gemma, XLM-R, T5)
 
-SentencePiece-style models use a different merge algorithm with non-topological rank orders. tokie uses a radix heap with O(1) amortized operations that exploits BPE's monotonic rank property. tokie is **1.3x faster** than HuggingFace on Gemma 3. Note: kitoken appears faster in raw throughput but produces incorrect output on SentencePiece models (13% more tokens, mismatches starting at token 93 on Gemma 3).
+SentencePiece-style models use a different merge algorithm with non-topological rank orders. tokie uses a radix heap with O(1) amortized operations that exploits BPE's monotonic rank property. tokie is **2-3x faster** than HuggingFace on Gemma 3.
 
 ![SentencePiece BPE speed](assets/benchmark_sentencepiece.png)
 
@@ -174,39 +174,37 @@ SentencePiece-style models use a different merge algorithm with non-topological 
 
 All results on Apple M3 Pro, single-string encode, median of 10 runs.
 
-#### tokie vs HuggingFace tokenizers vs kitoken
+#### tokie vs HuggingFace tokenizers
 
-| Model | Text Size | tokie | HF tokenizers | kitoken | vs HF | vs kitoken |
-|-------|-----------|-------|---------------|---------|-------|------------|
-| BERT | 45 KB | 0.76 ms | 11.2 ms | 2.19 ms | **15x** | **2.9x** |
-| BERT | 900 KB | 14.3 ms | 279 ms | 51.8 ms | **20x** | **3.6x** |
-| GPT-2 | 45 KB | 0.91 ms | 8.34 ms | 1.27 ms | **9x** | **1.4x** |
-| GPT-2 | 900 KB | 15.8 ms | 246 ms | 29.8 ms | **16x** | **1.9x** |
-| Llama 3 | 45 KB | 0.84 ms | 8.60 ms | 1.58 ms | **10x** | **1.9x** |
-| Llama 3 | 900 KB | 15.0 ms | 222 ms | 35.1 ms | **15x** | **2.3x** |
-| Qwen 3 | 45 KB | 0.84 ms | 9.80 ms | 2.22 ms | **12x** | **2.6x** |
-| Qwen 3 | 900 KB | 15.8 ms | 270 ms | 49.3 ms | **17x** | **3.1x** |
-| ModernBERT | 45 KB | 1.11 ms | 10.0 ms | 1.76 ms | **9x** | **1.6x** |
-| ModernBERT | 900 KB | 26.7 ms | 276 ms | 50.7 ms | **10x** | **1.9x** |
-| Gemma 3 | 45 KB | 9.29 ms | 10.6 ms | 5.01 ms* | 1.1x | — |
-| Gemma 3 | 900 KB | 160 ms | 214 ms | 93.7 ms* | 1.3x | — |
+| Model | Text Size | tokie | HF tokenizers | vs HF |
+|-------|-----------|-------|---------------|-------|
+| BERT | 45 KB | 0.56 ms | 10.9 ms | **20x** |
+| BERT | 900 KB | 9.84 ms | 281 ms | **29x** |
+| GPT-2 | 45 KB | 0.51 ms | 8.5 ms | **17x** |
+| GPT-2 | 900 KB | 9.42 ms | 209 ms | **22x** |
+| Llama 3 | 45 KB | 0.58 ms | 8.5 ms | **15x** |
+| Llama 3 | 900 KB | 9.45 ms | 211 ms | **22x** |
+| Qwen 3 | 45 KB | 0.55 ms | 9.3 ms | **17x** |
+| Qwen 3 | 900 KB | 9.58 ms | 230 ms | **24x** |
+| ModernBERT | 45 KB | 0.52 ms | 10.2 ms | **20x** |
+| ModernBERT | 900 KB | 9.75 ms | 236 ms | **24x** |
+| Gemma 3 | 45 KB | 5.20 ms | 11.6 ms | **2x** |
+| Gemma 3 | 900 KB | 131 ms | 330 ms | **3x** |
 
 #### tokie vs tiktoken (OpenAI models)
 
 | Model | Text Size | tokie | tiktoken | Speedup |
 |-------|-----------|-------|----------|---------|
-| cl100k (GPT-4) | 45 KB | 0.82 ms | 2.87 ms | **3.5x** |
-| cl100k (GPT-4) | 900 KB | 16.4 ms | 61.3 ms | **3.7x** |
-| o200k (GPT-4o) | 45 KB | 0.88 ms | 4.68 ms | **5.3x** |
-| o200k (GPT-4o) | 900 KB | 17.5 ms | 97.4 ms | **5.6x** |
+| cl100k (GPT-4) | 45 KB | 0.69 ms | 2.37 ms | **3.5x** |
+| cl100k (GPT-4) | 900 KB | 9.63 ms | 45.7 ms | **4.7x** |
+| o200k (GPT-4o) | 45 KB | 0.52 ms | 4.10 ms | **7.9x** |
+| o200k (GPT-4o) | 900 KB | 9.83 ms | 81.5 ms | **8.3x** |
 
-100% token-accurate across all models. Batch encoding is 4-6x faster than HF and 2-3x faster than kitoken.
-
-\* kitoken produces incorrect output on Gemma 3 SentencePiece (13% more tokens, diverges at token 93 — [reported](https://github.com/Systemcluster/kitoken/issues/3)). Speedup comparison not meaningful for incorrect output.
+100% token-accurate across all models. Batch encoding is 6-9x faster than HF.
 
 ### Tokenizer Loading
 
-Loading a tokenizer from `tokenizer.json` requires JSON parsing, vocabulary construction, and — for BPE models — building the Aho-Corasick automaton from scratch. tiktoken similarly has to parse its BPE data and compile regex patterns on every load. tokie's `.tkz` binary format stores all of this pre-built: the Double-Array Aho-Corasick (DAAC) automaton state, the normalized vocabulary, and the encoder configuration are serialized directly. Loading becomes a near-zero-cost deserialization — no parsing, no construction — achieving **4x–9x faster** cold load times than HuggingFace and **2x–3x faster** than tiktoken.
+Loading a tokenizer from `tokenizer.json` requires JSON parsing, vocabulary construction, and — for BPE models — building the Aho-Corasick automaton from scratch. tiktoken similarly has to parse its BPE data and compile regex patterns on every load. tokie's `.tkz` binary format stores all of this pre-built: the Double-Array Aho-Corasick (DAAC) automaton state, the normalized vocabulary, and the encoder configuration are serialized directly. Loading becomes a near-zero-cost deserialization — no parsing, no construction — achieving **2x–8x faster** cold load times than HuggingFace.
 
 ![Tokenizer loading time](assets/benchmark_loading.png)
 
@@ -215,7 +213,7 @@ Loading a tokenizer from `tokenizer.json` requires JSON parsing, vocabulary cons
 Every tokenizer below is tested against the original HuggingFace tokenizer on 1MB of [enwik8](https://mattmahoney.net/dc/textdata.html) (~300K tokens) in [CI](../../actions/workflows/tokenizer-accuracy.yml). **Pass** = every token matches.
 
 <details>
-<summary><b>View full accuracy table (75 models)</b></summary>
+<summary><b>View full accuracy table (74 models)</b></summary>
 
 | Model | Type | Status |
 |-------|------|--------|
@@ -296,19 +294,19 @@ Every tokenizer below is tested against the original HuggingFace tokenizer on 1M
 
 </details>
 
-**Summary**: 75 pass, 0 fail out of 75 tested. Every tokenizer produces identical output to HuggingFace.
+**Summary**: 74 pass, 0 fail out of 74 tested. Every tokenizer produces identical output to HuggingFace.
 
 ## Why tokie?
 
 When I started building [Chonkie](https://github.com/chonkie-inc/chonkie), the biggest bottleneck wasn't chunking — it was tokenization. We were spending more time counting tokens than actually chunking text.
 
-tokie uses hand-written parsers for each pretokenization pattern — GPT-2, cl100k, o200k, BERT — that understand the exact character classes needed without the overhead of a general-purpose regex engine. That alone gets you a 10–20x speedup on pretokenization.
+tokie uses hand-written parsers for each pretokenization pattern — GPT-2, cl100k, o200k, BERT — that understand the exact character classes needed without the overhead of a general-purpose regex engine. That alone gets you a 3.5x speedup on pretokenization.
 
 The second problem was that no single library could load everything. I actually tried to solve this before with [AutoTikTokenizer](https://github.com/bhavnick/autotiktokenizer), believing tiktoken's BPE engine could handle all of HuggingFace. I was wrong — you need fundamentally different algorithms for each encoder type: backtracking BPE for tiktoken-style models, heap-based BPE for models with non-topological merge orders, radix-heap BPE for SentencePiece, plus WordPiece and Unigram each with their own tricks.
 
 The third insight was parallelism. Tokenization is embarrassingly parallel if you split text at the right boundaries. We use [chunk](https://github.com/chonkie-inc/chunk) to SIMD-split text into chunks that respect token boundaries, then encode each chunk on a separate core and concatenate. This gives near-linear scaling — about 5x on 8 cores.
 
-Finally, we built the `.tkz` format to eliminate load-time overhead. A `tokenizer.json` file has to be parsed, validated, and used to reconstruct all the internal data structures (including the Aho-Corasick automaton, which is expensive to build for large vocabularies). The `.tkz` format stores the pre-built DAAC automaton, vocabulary, and configuration as a flat binary — loading is just deserialization, no construction required. This cuts load times from 150ms to 15ms for large models like O200K.
+Finally, we built the `.tkz` format to eliminate load-time overhead. A `tokenizer.json` file has to be parsed, validated, and used to reconstruct all the internal data structures (including the Aho-Corasick automaton, which is expensive to build for large vocabularies). The `.tkz` format stores the pre-built DAAC automaton, vocabulary, and configuration as a flat binary — loading is just deserialization, no construction required. This cuts load times from 283ms to 118ms for large models like O200K, and from 101ms to 12ms for BERT.
 
 The result is **tokie** — one tokenizer to rule them all.
 

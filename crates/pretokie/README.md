@@ -10,7 +10,7 @@
 [![License](https://img.shields.io/crates/l/pretokie)](LICENSE-MIT)
 [![GitHub Stars](https://img.shields.io/github/stars/chonkie-inc/tokie)](https://github.com/chonkie-inc/tokie)
 
-*Fast, zero-allocation pretokenizers for every major tokenizer — 4x faster than regex*
+*Fast, zero-allocation pretokenizers for every major tokenizer — 3.5x faster than regex*
 
 [Quick Start](#quick-start) •
 [Pretokenizers](#pretokenizers) •
@@ -20,7 +20,7 @@
 
 </div>
 
-**pretokie** splits text into pieces before BPE/WordPiece/Unigram encoding. Each pretokenizer is a hand-coded, single-pass iterator — no regex, no allocation, just raw byte-level dispatch at 400 MB/s.
+**pretokie** splits text into pieces before BPE/WordPiece/Unigram encoding. Each pretokenizer is a hand-coded, single-pass iterator — no regex, no allocation, just raw byte-level dispatch at 300+ MB/s.
 
 Part of the [tokie](https://github.com/chonkie-inc/tokie) tokenizer project.
 
@@ -28,7 +28,7 @@ Part of the [tokie](https://github.com/chonkie-inc/tokie) tokenizer project.
 
 ```toml
 [dependencies]
-pretokie = "0.0.2"
+pretokie = "0.0.3"
 ```
 
 ```rust
@@ -44,21 +44,21 @@ Every pretokenizer implements `Iterator<Item = &str>` — use `.collect()`, `.co
 
 | Name | Models | MB/s | Pieces* | cyc/B |
 |------|--------|------|---------|-------|
-| `Gpt2` | GPT-2, GPT-J, RoBERTa | **403** | 24.5M | 8.3 |
-| `Cl100k` | GPT-3.5, GPT-4, Llama 3 | **407** | 23.9M | 8.2 |
-| `O200k` | GPT-4o | **371** | 23.9M | 9.0 |
-| `Bert` | BERT, DistilBERT, GTE, BGE, MiniLM | **387** | 26.1M | 8.6 |
-| `Voyage` | Voyage 3, Voyage Code 3 | **403** | 25.0M | 8.3 |
-| `SmolLM` | SmolLM2 | **398** | 26.2M | 8.4 |
-| `DeepSeek` | DeepSeek-V3, DeepSeek-R1 | **399** | 23.9M | 8.4 |
-| `Qwen` | Qwen3.5 | **384** | 25.0M | 8.7 |
+| `Gpt2` | GPT-2, GPT-J, RoBERTa | **326** | 23.3M | 10.2 |
+| `Cl100k` | GPT-3.5, GPT-4, Llama 3 | **316** | 21.7M | 10.6 |
+| `O200k` | GPT-4o | **304** | 21.6M | 11.0 |
+| `Bert` | BERT, DistilBERT, GTE, BGE, MiniLM | **340** | 26.1M | 9.8 |
+| `Voyage` | Voyage 3, Voyage Code 3 | **314** | 22.8M | 10.6 |
+| `SmolLM` | SmolLM2 | **328** | 25.0M | 10.2 |
+| `DeepSeek` | DeepSeek-V3, DeepSeek-R1 | **322** | 21.7M | 10.4 |
+| `Qwen` | Qwen3.5 | **323** | 22.8M | 10.3 |
 | `Regex` | Any pattern (fallback) | 91 | 23.3M | 36.7 |
 
-\* Pieces on 95 MB enwik8, Apple M3 Pro. Cycles/byte at 3.5 GHz.
+\* Pieces on 95 MB enwik8, Apple M3 Pro. Cycles/byte at 3.34 GHz.
 
 ## Benchmarks
 
-All pretokenizers run at **370-407 MB/s** — 4x faster than the regex fallback at 91 MB/s. The fastest (CL100K at 407 MB/s) processes 95 MB of English text in 234ms, yielding 23.9 million pieces.
+All pretokenizers run at **304-340 MB/s** — 3.5x faster than the regex fallback at 91 MB/s. The fastest (BERT at 340 MB/s) processes 95 MB of English text in 280ms, yielding 26.1 million pieces.
 
 For comparison, HuggingFace tokenizers' regex-based pretokenizer runs at ~100 MB/s. pretokie's hand-coded iterators eliminate regex overhead entirely.
 
@@ -86,7 +86,7 @@ For unknown tokenizer patterns, enable the `regex` feature:
 
 ```toml
 [dependencies]
-pretokie = { version = "0.0.2", features = ["regex"] }
+pretokie = { version = "0.0.3", features = ["regex"] }
 ```
 
 ```rust
@@ -106,7 +106,7 @@ Without the `regex` feature, pretokie has only one dependency (`unicode-general-
 
 ## Why Hand-Coded?
 
-Regex-based pretokenizers run at ~91 MB/s. The hand-coded iterators run at ~400 MB/s — **4x faster** — because they eliminate:
+Regex-based pretokenizers run at ~91 MB/s. The hand-coded iterators run at ~320 MB/s — **3.5x faster** — because they eliminate:
 
 - **Regex compilation** — no NFA/DFA construction at startup
 - **Branch overhead** — specialized byte-level dispatch instead of generic regex engine
