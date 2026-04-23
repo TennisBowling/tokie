@@ -26,14 +26,17 @@ pub fn decode_utf8(bytes: &[u8]) -> (char, usize) {
     if b0 < 0x80 {
         (b0 as char, 1)
     } else if b0 < 0xE0 {
+        if bytes.len() < 2 { return ('\u{FFFD}', bytes.len()); }
         let c = ((b0 as u32 & 0x1F) << 6) | (bytes[1] as u32 & 0x3F);
         (unsafe { char::from_u32_unchecked(c) }, 2)
     } else if b0 < 0xF0 {
+        if bytes.len() < 3 { return ('\u{FFFD}', bytes.len()); }
         let c = ((b0 as u32 & 0x0F) << 12)
             | ((bytes[1] as u32 & 0x3F) << 6)
             | (bytes[2] as u32 & 0x3F);
         (unsafe { char::from_u32_unchecked(c) }, 3)
     } else {
+        if bytes.len() < 4 { return ('\u{FFFD}', bytes.len()); }
         let c = ((b0 as u32 & 0x07) << 18)
             | ((bytes[1] as u32 & 0x3F) << 12)
             | ((bytes[2] as u32 & 0x3F) << 6)
