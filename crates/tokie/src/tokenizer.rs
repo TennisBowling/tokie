@@ -65,6 +65,11 @@ pub struct Tokenizer {
     /// Special token metadata: maps token string -> token ID.
     /// Populated from the `added_tokens` array in tokenizer.json where `special: true`.
     special_tokens: Vec<(String, TokenId)>,
+    /// When true, `encode` and `encode_with_offsets` skip their `thread::scope`
+    /// fan-out and stay on the caller thread. Set this in concurrent/async
+    /// contexts (e.g. per-request tokenization in an async server) where
+    /// per-call OS-thread creation exhausts `vm.max_map_count` / `RLIMIT_NPROC`.
+    no_parallel: bool,
 }
 
 impl Tokenizer {
@@ -89,7 +94,22 @@ impl Tokenizer {
             reverse_vocab: OnceLock::new(),
             added_tokens_matcher: None,
             special_tokens: Vec::new(),
+            no_parallel: false,
         }
+    }
+
+    /// Disable the per-call `thread::scope` fan-out used inside `encode` and
+    /// `encode_with_offsets`. Also propagates to the underlying encoder.
+    ///
+    /// Use this in concurrent/async contexts (async servers doing per-request
+    /// tokenization) where the default parallel path creates enough OS threads
+    /// per call to exhaust `vm.max_map_count` or `RLIMIT_NPROC` under load.
+    /// For single-request latency the sequential path is typically only
+    /// hundreds of microseconds slower — negligible compared to network /
+    /// model-inference cost.
+    pub fn set_no_parallel(&mut self, no_parallel: bool) {
+        self.no_parallel = no_parallel;
+        self.encoder.set_no_parallel(no_parallel);
     }
 
     /// Set added tokens matcher. These are matched BEFORE pretokenization, like HuggingFace does.
@@ -420,7 +440,7 @@ impl Tokenizer {
             return self.encoder.encode(normalized.as_ref().as_bytes());
         }
 
-        if text.len() >= Self::PARALLEL_CHUNK_THRESHOLD {
+        if !self.no_parallel && text.len() >= Self::PARALLEL_CHUNK_THRESHOLD {
             self.encode_parallel(text)
         } else {
             let normalized = self.normalizer.normalize(text);
@@ -446,7 +466,10 @@ impl Tokenizer {
                     .collect();
 
                 let cpus = num_cpus();
-                if pieces.len() > cpus * 2 && normalized_ref.len() >= Self::PARALLEL_CHUNK_THRESHOLD {
+                if !self.no_parallel
+                    && pieces.len() > cpus * 2
+                    && normalized_ref.len() >= Self::PARALLEL_CHUNK_THRESHOLD
+                {
                     // Parallel path: distribute pieces across threads
                     let chunk_size = (pieces.len() + cpus - 1) / cpus;
                     let encoder = &self.encoder;
@@ -820,6 +843,26 @@ mod tests {
         let tokenizer = make_tokenizer();
         let enc = tokenizer.encode("abc", false);
         assert_eq!(enc.ids.len(), 2);
+    }
+
+    #[test]
+    fn test_set_no_parallel_preserves_output() {
+        // Build an input long enough to take the parallel path (> 10 KB).
+        let text: String = "abcdefg ".repeat(2000);
+
+        let parallel = make_pretok_tokenizer();
+        let parallel_ids = parallel.encode(&text, false).ids;
+
+        let mut sequential = make_pretok_tokenizer();
+        sequential.set_no_parallel(true);
+        let sequential_ids = sequential.encode(&text, false).ids;
+
+        assert_eq!(parallel_ids, sequential_ids);
+
+        // Also exercise the no-pretokenizer path (SentencePiece-style).
+        let mut nopretok = make_tokenizer();
+        nopretok.set_no_parallel(true);
+        let _ = nopretok.encode(&text, false);
     }
 
     #[test]

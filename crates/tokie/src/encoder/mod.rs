@@ -106,6 +106,15 @@ impl Encoder {
         }
     }
 
+    /// Disable internal `thread::scope` fan-out. Currently only the
+    /// Backtracking BPE encoder spawns threads in its hot path; this is a
+    /// no-op for other encoder variants.
+    pub fn set_no_parallel(&mut self, no_parallel: bool) {
+        if let Encoder::Backtracking(e) = self {
+            e.set_no_parallel(no_parallel);
+        }
+    }
+
     /// Get the vocabulary size.
     pub fn vocab_size(&self) -> usize {
         match self {

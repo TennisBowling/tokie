@@ -155,6 +155,10 @@ pub struct BacktrackingBytePairEncoder {
     /// Maps byte sequence -> token ID for early exit.
     /// Uses foldhash for fast lookups.
     token_cache: FoldHashMap<Vec<u8>, TokenId>,
+    /// When true, `encode` skips `thread::scope` and stays on the caller thread.
+    /// Set this in concurrent/async contexts (e.g. async servers) where per-call
+    /// OS-thread fan-out blows up `vm.max_map_count` / per-process thread limits.
+    no_parallel: bool,
 }
 
 impl BacktrackingBytePairEncoder {
@@ -221,6 +225,7 @@ impl BacktrackingBytePairEncoder {
             matcher,
             next_prefix_match,
             token_cache,
+            no_parallel: false,
         };
 
         (encoder, token_bytes)
@@ -293,6 +298,7 @@ impl BacktrackingBytePairEncoder {
             matcher,
             next_prefix_match,
             token_cache,
+            no_parallel: false,
         };
 
         (encoder, token_bytes)
@@ -324,6 +330,7 @@ impl BacktrackingBytePairEncoder {
             matcher,
             next_prefix_match,
             token_cache,
+            no_parallel: false,
         }
     }
 
@@ -439,6 +446,13 @@ impl BacktrackingBytePairEncoder {
     }
 
     /// Encode text into BPE tokens.
+    /// Disable the internal `thread::scope` fan-out in `encode`. Use from
+    /// concurrent callers where per-call OS-thread creation exhausts
+    /// `vm.max_map_count` / `RLIMIT_NPROC`.
+    pub fn set_no_parallel(&mut self, no_parallel: bool) {
+        self.no_parallel = no_parallel;
+    }
+
     pub fn encode(&self, text: &[u8]) -> Vec<TokenId> {
         if text.is_empty() {
             return Vec::new();
@@ -451,7 +465,7 @@ impl BacktrackingBytePairEncoder {
             }
         }
 
-        if text.len() < PARALLEL_THRESHOLD {
+        if self.no_parallel || text.len() < PARALLEL_THRESHOLD {
             return self.encode_sequential(text);
         }
 
