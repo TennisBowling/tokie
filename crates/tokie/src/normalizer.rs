@@ -18,6 +18,7 @@
 
 use std::borrow::Cow;
 use unicode_general_category::{get_general_category, GeneralCategory};
+use unicode_normalization::{UnicodeNormalization, is_nfc, is_nfkc};
 
 /// Lookup table for ASCII bytes that need cleaning in clean_text.
 /// true = problematic byte (control char, DEL, or high bit set)
@@ -143,15 +144,12 @@ impl Normalizer {
 /// NFC Unicode normalization with early exit.
 ///
 /// Returns borrowed text if already NFC normalized, avoiding allocation.
-/// Uses ICU4X for fast normalization (~22x faster than unicode-normalization).
 #[inline]
 fn normalize_nfc<'a>(text: &'a str) -> Cow<'a, str> {
-    let nfc = icu_normalizer::ComposingNormalizer::new_nfc();
-
-    if nfc.is_normalized(text) {
+    if is_nfc(text) {
         return Cow::Borrowed(text);
     }
-    Cow::Owned(nfc.normalize(text))
+    Cow::Owned(text.nfc().collect())
 }
 
 /// Metaspace normalization for SentencePiece tokenizers.
@@ -227,11 +225,10 @@ pub fn sentencepiece_normalize(text: &str) -> Cow<'_, str> {
     }
 
     // Step 1: NFKC normalization
-    let nfkc = icu_normalizer::ComposingNormalizer::new_nfkc();
-    let normalized = if nfkc.is_normalized(text) {
+    let normalized: Cow<'_, str> = if is_nfkc(text) {
         Cow::Borrowed(text)
     } else {
-        Cow::Owned(nfkc.normalize(text))
+        Cow::Owned(text.nfkc().collect())
     };
 
     // Step 2: Strip control characters (BOM, null, format chars, etc.)
@@ -271,8 +268,7 @@ pub fn sentencepiece_lowercase_normalize(text: &str) -> Cow<'_, str> {
     }
 
     // Step 1: NFKD normalization (decompose to separate base chars from combining marks)
-    let nfkd = icu_normalizer::DecomposingNormalizer::new_nfkd();
-    let normalized = nfkd.normalize(text);
+    let normalized: String = text.nfkd().collect();
 
     // Step 2: Strip accents (combining marks) and control characters (BOM, null, etc.)
     let stripped: String = normalized
@@ -544,7 +540,7 @@ fn clean_text_unicode<'a>(text: &'a str, first_problem: usize) -> Cow<'a, str> {
 /// Uses NFD normalization to decompose characters, then filters out
 /// combining marks (Unicode category Mn - NonspacingMark).
 ///
-/// Performance: ~3.1 GB/s for pure ASCII text, ~469 MB/s for accented text (using ICU4X).
+/// Performance: ~3.1 GB/s for pure ASCII text.
 ///
 /// # Example
 ///
@@ -561,9 +557,8 @@ pub fn strip_accents<'a>(text: &'a str) -> Cow<'a, str> {
         return Cow::Borrowed(text);
     }
 
-    // Use ICU4X for fast NFD normalization
-    let nfd = icu_normalizer::DecomposingNormalizer::new_nfd();
-    let normalized = nfd.normalize(text);
+    // NFD normalize (decompose characters)
+    let normalized: String = text.nfd().collect();
 
     // Filter out combining marks (accents) using fast inline check
     // Most combining marks are in range U+0300-U+036F (Combining Diacritical Marks)
@@ -607,7 +602,6 @@ fn is_combining_mark(c: char) -> bool {
 /// 1. Single pass over the text instead of 3 passes
 /// 2. Single allocation instead of up to 3 allocations
 /// 3. Better cache locality
-/// 4. Uses ICU4X for fast NFD normalization (~12x faster than unicode-normalization)
 ///
 /// For pure ASCII lowercase text, returns `Cow::Borrowed` (zero allocation).
 /// Lookup table for bytes that need processing in bert_uncased_normalize.
@@ -650,9 +644,8 @@ pub fn bert_uncased_normalize(text: &str) -> Cow<'_, str> {
     let mut result = String::with_capacity(text.len());
 
     if has_non_ascii {
-        // Use ICU4X for fast NFD normalization
-        let nfd = icu_normalizer::DecomposingNormalizer::new_nfd();
-        let normalized = nfd.normalize(text);
+        // NFD normalize (decompose characters)
+        let normalized: String = text.nfd().collect();
 
         // Process NFD-normalized text: filter accents, clean, lowercase
         for c in normalized.chars() {
@@ -999,4 +992,22 @@ mod tests {
         assert_eq!(result, "Hello World!"); // No change
     }
 
+    // Regression: inputs that panicked inside icu_normalizer 1.5.0 must now
+    // normalize cleanly. Covers CJK and Cyrillic fragments observed in prod.
+    #[test]
+    fn test_non_ascii_does_not_panic() {
+        let samples = [
+            "向，每条≤20字）：",
+            " РФ','СВО','экономика','госСМИ','Кремл",
+            " [0,0,0,0,1,1,9,14,21,10,8,12,18,21,14,18,14,2,3,0,0,5,0,0]\n\nП",
+            "下一步选项（4个差异化方向，每条≤20字）：",
+        ];
+        for s in samples {
+            let _ = Normalizer::Nfc.normalize(s);
+            let _ = Normalizer::SentencePiece.normalize(s);
+            let _ = Normalizer::SentencePieceLowercase.normalize(s);
+            let _ = Normalizer::BertUncased.normalize(s);
+            let _ = strip_accents(s);
+        }
+    }
 }
